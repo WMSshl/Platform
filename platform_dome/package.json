@@ -1,0 +1,12 @@
+{
+  "name": "platform-dome",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "基于 Phaser.js 的横版剧情动作游戏原型",
+  "scripts": {
+    "start": "node tools/dev-server.mjs",
+    "check": "node tools/check-project.mjs",
+    "test": "node --test tests/unit/*.test.mjs"
+  }
+}

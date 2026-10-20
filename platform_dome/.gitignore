@@ -1,0 +1,24 @@
+# 依赖和临时文件
+node_modules/
+.tmp/
+*.log
+
+# 编辑器配置
+.vscode/
+.idea/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 本地截图和测试输出
+playwright-report/
+test-results/
+.playwright-mcp/
+
+# 只忽略项目根目录中临时生成的截图，不忽略 assets 下的正式美术资源
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+

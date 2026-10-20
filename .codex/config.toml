@@ -1,0 +1,7 @@
+[sandbox_workspace_write]
+writable_roots = [
+  "..",
+  "../platform_dome",
+  "../platform_contract",
+  "../platform_editor"
+]

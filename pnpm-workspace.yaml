@@ -1,0 +1,4 @@
+packages:
+  - platform_contract
+  - platform_editor
+  - platform_dome

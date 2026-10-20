@@ -1,0 +1,72 @@
+{
+  "player-melee-strike": {
+    "id": "player-melee-strike",
+    "type": "melee",
+    "displayName": "横斩",
+    "range": 138,
+    "verticalRange": 123,
+    "windupMs": 55,
+    "activeMs": 100,
+    "recoveryMs": 0,
+    "cooldownMs": 390,
+    "invulnerabilityMs": 700,
+    "damageMultiplier": 1,
+    "knockback": 150,
+    "telegraphColor": "#e0f2fe",
+    "combo": {
+      "windowMs": 450,
+      "stages": [
+        {
+          "animation": "attack-1",
+          "hitFrame": 4,
+          "range": 114,
+          "verticalRange": 99,
+          "damageMultiplier": 1,
+          "knockback": 150
+        },
+        {
+          "animation": "attack-2",
+          "hitFrame": 5,
+          "range": 111,
+          "verticalRange": 99,
+          "damageMultiplier": 1,
+          "knockback": 150
+        },
+        {
+          "animation": "attack-3",
+          "hitFrame": 5,
+          "range": 123,
+          "verticalRange": 105,
+          "damageMultiplier": 1,
+          "knockback": 190
+        }
+      ]
+    }
+  },
+  "player-guard-counter": {
+    "id": "player-guard-counter",
+    "type": "melee",
+    "displayName": "格挡反击",
+    "hitFrame": 5,
+    "range": 108,
+    "verticalRange": 108,
+    "damageMultiplier": 1.2,
+    "knockback": 180,
+    "invulnerabilityMs": 700,
+    "telegraphColor": "#bae6fd"
+  },
+  "enemy-melee-slash": {
+    "id": "enemy-melee-slash",
+    "type": "melee",
+    "displayName": "守卫挥击",
+    "range": 144,
+    "verticalRange": 108,
+    "windupMs": 520,
+    "activeMs": 140,
+    "recoveryMs": 220,
+    "cooldownMs": 1450,
+    "damageMultiplier": 1,
+    "knockback": 180,
+    "telegraphColor": "#f97316"
+  }
+}

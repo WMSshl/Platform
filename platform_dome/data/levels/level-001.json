@@ -1,0 +1,265 @@
+{
+  "schemaVersion": 1,
+  "id": "level-001",
+  "name": "低语庭院",
+  "world": {
+    "width": 2800,
+    "height": 1399,
+    "backgroundColor": "#0f172a",
+    "backgroundAsset": {
+      "id": "map/backgrounds/demo.png",
+      "path": "assets/map/backgrounds/demo.png",
+      "fileName": "demo.png",
+      "mimeType": "image/png",
+      "fit": "stretch",
+      "revision": "2026-10-20T08:34:12.529Z"
+    }
+  },
+  "camera": {
+    "lerpX": 0.1,
+    "lerpY": 0.12,
+    "deadzoneWidth": 180,
+    "deadzoneHeight": 110
+  },
+  "spawnPoints": [
+    {
+      "id": "spawn-start",
+      "name": "默认出生点",
+      "x": 80,
+      "y": 1216
+    }
+  ],
+  "initialSpawnId": "spawn-start",
+  "solids": [
+    {
+      "id": "solid-4",
+      "x": 752,
+      "y": 1359,
+      "width": 1504,
+      "height": 24,
+      "color": "#475569",
+      "terrainType": "ground"
+    },
+    {
+      "id": "solid-5",
+      "x": 1544,
+      "y": 1329,
+      "width": 84,
+      "height": 68,
+      "color": "#475569",
+      "terrainType": "ground"
+    },
+    {
+      "id": "solid-1",
+      "x": 352,
+      "y": 1252,
+      "width": 704,
+      "height": 16,
+      "terrainType": "platform",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "solid-2",
+      "x": 192,
+      "y": 1096,
+      "width": 384,
+      "height": 16,
+      "terrainType": "platform",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "solid-3",
+      "x": 1628,
+      "y": 1248,
+      "width": 122,
+      "height": 112,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-6",
+      "x": 1751,
+      "y": 1308,
+      "width": 136,
+      "height": 128,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-7",
+      "x": 2309,
+      "y": 1355,
+      "width": 983,
+      "height": 16,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-8",
+      "x": 2576,
+      "y": 1252,
+      "width": 455,
+      "height": 16,
+      "terrainType": "platform",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "solid-9",
+      "x": 2479,
+      "y": 1096,
+      "width": 131,
+      "height": 16,
+      "terrainType": "platform",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "solid-10",
+      "x": 2672,
+      "y": 1044,
+      "width": 256,
+      "height": 16,
+      "terrainType": "platform",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "solid-11",
+      "x": 2544,
+      "y": 1070,
+      "width": 1,
+      "height": 69,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-12",
+      "x": 1888,
+      "y": 928,
+      "width": 122,
+      "height": 96,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-13",
+      "x": 2144,
+      "y": 954,
+      "width": 392,
+      "height": 42,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-14",
+      "x": 1182,
+      "y": 1008,
+      "width": 142,
+      "height": 151,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-15",
+      "x": 984,
+      "y": 1060,
+      "width": 267,
+      "height": 48,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-16",
+      "x": 1302,
+      "y": 985,
+      "width": 114,
+      "height": 208,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-17",
+      "x": 1392,
+      "y": 1068,
+      "width": 64,
+      "height": 64,
+      "terrainType": "ground",
+      "color": "#475569"
+    },
+    {
+      "id": "solid-18",
+      "x": 1088,
+      "y": 992,
+      "width": 912,
+      "height": 272,
+      "terrainType": "ground",
+      "color": "#475569"
+    }
+  ],
+  "actors": [
+    {
+      "instanceId": "guard-1",
+      "actorId": "guard",
+      "x": 1424,
+      "y": 1264,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "instanceId": "actor-1",
+      "actorId": "guard",
+      "x": 1296,
+      "y": 1312,
+      "scaleX": 1,
+      "scaleY": 1
+    },
+    {
+      "instanceId": "actor-3",
+      "actorId": "guard",
+      "x": 976,
+      "y": 1280,
+      "scaleX": 1,
+      "scaleY": 1
+    }
+  ],
+  "items": [
+    {
+      "instanceId": "pickup-herb-1",
+      "itemId": "healing-herb",
+      "quantity": 1,
+      "x": 1632,
+      "y": 1152
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "level-001-entrance-1",
+      "type": "entrance",
+      "x": 80,
+      "y": 992,
+      "width": 113,
+      "height": 128,
+      "color": "#22d3ee",
+      "activation": "player-center-touch",
+      "targetExitId": "level-001-exit-2"
+    },
+    {
+      "id": "level-001-exit-2",
+      "type": "exit",
+      "x": 1008,
+      "y": 960,
+      "width": 112,
+      "height": 128,
+      "color": "#34d399"
+    },
+    {
+      "id": "level-001-entrance-2",
+      "type": "entrance",
+      "x": 2400,
+      "y": 1280,
+      "width": 80,
+      "height": 128,
+      "color": "#22d3ee",
+      "activation": "player-center-touch",
+      "targetExitId": "level-002-exit-1"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "platform-dome-map-editor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "穹顶回响游戏项目的浏览器地图编辑器",
+  "scripts": {
+    "start": "node tools/dev-server.mjs",
+    "check": "node tools/check-project.mjs",
+    "migrate:levels": "node tools/migrate-level-schema.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

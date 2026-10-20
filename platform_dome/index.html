@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="基于 Phaser.js 的横版剧情动作游戏原型"
+    />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <title>穹顶回响 · 游戏原型</title>
+    <style>
+      /*
+       * 页面本身只负责把游戏画布铺满窗口。
+       * 具体的分辨率适配交给 Phaser 的 Scale Manager，
+       * 这样以后移植到其他屏幕尺寸时，不需要修改游戏逻辑。
+       */
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #020617;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      }
+
+      #game-container {
+        width: 100%;
+        height: 100%;
+      }
+
+      canvas {
+        display: block;
+        /* 浏览器放大 Canvas 时保持硬边缘，避免二次插值模糊。 */
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container"></div>
+
+    <!--
+      Phaser 使用本地文件，不依赖 CDN。
+      必须先加载 Phaser，再加载我们自己的 ES Module 入口。
+    -->
+    <script src="./vendor/phaser/phaser.min.js"></script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

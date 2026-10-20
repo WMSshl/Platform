@@ -1,0 +1,28 @@
+{
+  "healing-herb": {
+    "id": "healing-herb",
+    "name": "止血草",
+    "description": "用于保存背包数据的演示道具。",
+    "type": "material",
+    "stackable": true,
+    "maxStack": 99,
+    "appearance": {
+      "color": "#22c55e",
+      "width": 26,
+      "height": 26
+    }
+  },
+  "relic-shard": {
+    "id": "relic-shard",
+    "name": "遗物碎片",
+    "description": "与后续剧情和机关有关的演示道具。",
+    "type": "quest",
+    "stackable": true,
+    "maxStack": 99,
+    "appearance": {
+      "color": "#f59e0b",
+      "width": 24,
+      "height": 24
+    }
+  }
+}

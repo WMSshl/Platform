@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "id": "level-002",
+  "name": "回声高塔",
+  "world": {
+    "width": 3000,
+    "height": 1700,
+    "backgroundColor": "#111827"
+  },
+  "camera": {
+    "lerpX": 0.1,
+    "lerpY": 0.13,
+    "deadzoneWidth": 150,
+    "deadzoneHeight": 100
+  },
+  "spawnPoints": [
+    {
+      "id": "spawn-start",
+      "name": "默认出生点",
+      "x": 140,
+      "y": 1520
+    }
+  ],
+  "initialSpawnId": "spawn-start",
+  "solids": [
+    {
+      "id": "ground",
+      "x": 1500,
+      "y": 1650,
+      "width": 3000,
+      "height": 100,
+      "color": "#334155"
+    },
+    {
+      "id": "tower-step-1",
+      "x": 420,
+      "y": 1490,
+      "width": 300,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-2",
+      "x": 700,
+      "y": 1380,
+      "width": 280,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-3",
+      "x": 980,
+      "y": 1270,
+      "width": 280,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-4",
+      "x": 1260,
+      "y": 1160,
+      "width": 280,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-5",
+      "x": 1540,
+      "y": 1050,
+      "width": 280,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-6",
+      "x": 1820,
+      "y": 940,
+      "width": 280,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-7",
+      "x": 2100,
+      "y": 830,
+      "width": 280,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "tower-step-8",
+      "x": 2380,
+      "y": 720,
+      "width": 280,
+      "height": 32,
+      "color": "#64748b"
+    },
+    {
+      "id": "tower-top",
+      "x": 2660,
+      "y": 620,
+      "width": 340,
+      "height": 32,
+      "color": "#64748b"
+    }
+  ],
+  "actors": [
+    {
+      "instanceId": "guard-2",
+      "actorId": "guard",
+      "x": 1000,
+      "y": 1540
+    }
+  ],
+  "items": [
+    {
+      "instanceId": "pickup-relic-1",
+      "itemId": "relic-shard",
+      "quantity": 1,
+      "x": 1900,
+      "y": 1540
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "lever-2",
+      "type": "switch",
+      "x": 2690,
+      "y": 572,
+      "width": 36,
+      "height": 64,
+      "color": "#facc15",
+      "interactionRange": 100,
+      "targetGateId": "gate-2",
+      "storyFlag": "tower_gate_opened",
+      "prompt": "按 E 启动塔顶机关"
+    },
+    {
+      "id": "gate-2",
+      "x": 2860,
+      "y": 534,
+      "width": 36,
+      "height": 140,
+      "color": "#eab308",
+      "type": "gate"
+    },
+    {
+      "id": "level-002-exit-2",
+      "x": 2925,
+      "y": 534,
+      "width": 80,
+      "height": 140,
+      "color": "#34d399",
+      "type": "exit"
+    },
+    {
+      "id": "level-002-exit-1",
+      "type": "exit",
+      "x": 144,
+      "y": 1528,
+      "width": 96,
+      "height": 144,
+      "color": "#34d399"
+    }
+  ]
+}

@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="穹顶回响游戏项目的地图编辑器" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>穹顶回响 · 地图编辑器</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand" title="穹顶回响游戏编辑器">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span class="brand-copy">
+            <strong>穹顶回响</strong>
+            <small>PLATFORM DOME</small>
+          </span>
+        </div>
+
+        <nav class="module-nav" aria-label="编辑器模块">
+          <button class="module-tab is-active" type="button" aria-current="page">
+            地图
+          </button>
+          <button class="module-tab" id="open-asset-library" type="button">
+            素材库
+          </button>
+          <button class="module-tab" type="button" disabled title="后续版本开放">
+            角色
+          </button>
+          <button class="module-tab" type="button" disabled title="后续版本开放">
+            任务
+          </button>
+          <button class="module-tab" type="button" disabled title="后续版本开放">
+            NPC
+          </button>
+          <button class="module-tab" type="button" disabled title="后续版本开放">
+            怪物
+          </button>
+          <button class="module-tab" type="button" disabled title="后续版本开放">
+            其它
+          </button>
+        </nav>
+
+        <div class="header-actions">
+          <span class="save-state" id="save-state">正在连接项目</span>
+          <select class="level-select" id="level-select" aria-label="切换关卡">
+            <option value="">加载中…</option>
+          </select>
+          <button class="button button-quiet" id="new-level" type="button">
+            新建
+          </button>
+          <button class="button button-quiet" id="open-level" type="button">
+            打开文件
+          </button>
+          <button class="button button-primary" id="save-level" type="button">
+            保存到游戏
+          </button>
+          <button
+            class="icon-button help-button"
+            id="open-help"
+            type="button"
+            title="快捷键"
+            aria-label="查看快捷键"
+          >
+            ?
+          </button>
+        </div>
+      </header>
+
+      <main class="editor-layout">
+        <aside class="sidebar sidebar-left" aria-label="地图工具与图层">
+          <section class="panel-section">
+            <div class="section-heading">
+              <span>工具</span>
+              <span class="section-hint">快捷键</span>
+            </div>
+            <div class="tool-grid" id="tool-grid">
+              <button class="tool-button is-active" data-tool="select" type="button">
+                <span class="tool-glyph">↖</span>
+                <span>选择</span>
+                <kbd>V</kbd>
+              </button>
+              <button class="tool-button" data-tool="solid" type="button">
+                <span class="tool-glyph">▭</span>
+                <span>地形</span>
+                <kbd>R</kbd>
+              </button>
+              <button class="tool-button" data-tool="actor" type="button">
+                <span class="tool-glyph">♟</span>
+                <span>角色</span>
+                <kbd>A</kbd>
+              </button>
+              <button class="tool-button" data-tool="item" type="button">
+                <span class="tool-glyph">◇</span>
+                <span>道具</span>
+                <kbd>I</kbd>
+              </button>
+              <button class="tool-button" data-tool="mechanism" type="button">
+                <span class="tool-glyph">⌁</span>
+                <span>机关</span>
+                <kbd>M</kbd>
+              </button>
+              <button class="tool-button tool-danger" data-tool="erase" type="button">
+                <span class="tool-glyph">⌫</span>
+                <span>删除</span>
+                <kbd>D</kbd>
+              </button>
+            </div>
+          </section>
+
+          <section class="panel-section palette-section" id="palette-section">
+            <div class="section-heading">
+              <span id="palette-title">放置素材</span>
+              <span class="section-hint" id="palette-hint">拖动绘制</span>
+            </div>
+            <div id="palette-content" class="palette-content"></div>
+          </section>
+
+          <section class="panel-section layer-section">
+            <div class="section-heading">
+              <span>关卡对象</span>
+              <button
+                class="text-button"
+                id="select-level-settings"
+                type="button"
+              >
+                关卡设置
+              </button>
+            </div>
+            <div class="layer-list" id="layer-list"></div>
+          </section>
+        </aside>
+
+        <section class="workspace">
+          <div class="canvas-toolbar">
+            <div class="document-heading">
+              <span class="document-eyebrow">地图编辑器</span>
+              <strong id="document-title">加载中…</strong>
+              <span class="document-id" id="document-id"></span>
+            </div>
+            <div class="canvas-actions">
+              <div class="segmented-control" id="snap-control">
+                <button id="toggle-snap" class="is-active" type="button">
+                  吸附 16px
+                </button>
+                <select id="grid-size" aria-label="网格尺寸">
+                  <option value="8">8</option>
+                  <option value="16" selected>16</option>
+                  <option value="32">32</option>
+                  <option value="64">64</option>
+                </select>
+              </div>
+              <button class="icon-button" id="undo" type="button" title="撤销 Ctrl+Z">
+                ↶
+              </button>
+              <button class="icon-button" id="redo" type="button" title="重做 Ctrl+Y">
+                ↷
+              </button>
+              <button class="icon-button" id="fit-view" type="button" title="适应窗口 0">
+                ⛶
+              </button>
+            </div>
+          </div>
+
+          <div class="canvas-stage">
+            <div id="map-canvas" aria-label="地图编辑画布"></div>
+            <div class="canvas-badge" id="tool-help">
+              对象上拖动移动，空白处拖动平移
+            </div>
+            <div class="canvas-coordinates" id="canvas-coordinates">
+              X 0 &nbsp; Y 0
+            </div>
+            <div class="zoom-control">
+              <button id="zoom-out" type="button" aria-label="缩小">−</button>
+              <span id="zoom-value">100%</span>
+              <button id="zoom-in" type="button" aria-label="放大">+</button>
+            </div>
+            <div class="canvas-empty" id="canvas-empty" hidden>
+              <strong>尚未选择关卡</strong>
+              <span>新建地图，或从本地打开一个关卡 JSON。</span>
+            </div>
+          </div>
+
+          <div class="status-bar">
+            <div class="status-summary">
+              <span class="status-dot"></span>
+              <span id="status-message">编辑器就绪</span>
+            </div>
+            <div class="status-actions">
+              <span id="viewport-size">世界 0 × 0</span>
+              <button class="text-button" id="save-as" type="button">
+                导出 JSON
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside class="sidebar sidebar-right" aria-label="属性与校验">
+          <div class="inspector-header">
+            <div>
+              <span class="inspector-eyebrow" id="selection-kind">关卡</span>
+              <strong id="selection-title">关卡设置</strong>
+            </div>
+            <button
+              class="icon-button"
+              id="focus-selection"
+              type="button"
+              title="定位到选中对象"
+            >
+              ◎
+            </button>
+          </div>
+          <div class="inspector-scroll" id="inspector"></div>
+          <section class="validation-panel" id="validation-panel">
+            <button
+              class="validation-heading"
+              id="toggle-validation"
+              type="button"
+              aria-expanded="true"
+            >
+              <span>
+                <span class="validation-icon" aria-hidden="true">✓</span>
+                数据校验
+              </span>
+              <span id="validation-count">0 个问题</span>
+            </button>
+            <div class="validation-list" id="validation-list"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <input id="file-input" type="file" accept=".json,application/json" hidden />
+
+    <dialog
+      class="asset-dialog"
+      id="asset-library-dialog"
+      aria-labelledby="asset-library-title"
+    >
+      <div class="asset-dialog-heading">
+        <div class="asset-dialog-title">
+          <span class="inspector-eyebrow">当前工作区素材</span>
+          <h2 id="asset-library-title">素材库</h2>
+          <p id="asset-storage-path">正在读取存储位置…</p>
+        </div>
+        <div class="asset-dialog-actions">
+          <span class="asset-api-state" id="asset-api-state">
+            正在连接
+          </span>
+          <button
+            class="icon-button"
+            id="close-asset-library"
+            type="button"
+            aria-label="关闭素材库"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      <div class="asset-library-layout">
+        <aside class="asset-taxonomy" aria-label="素材分类">
+          <div class="asset-taxonomy-label">分类</div>
+          <div class="asset-category-group">
+            <div class="asset-category-heading">
+              <span class="asset-category-icon" aria-hidden="true">⌘</span>
+              <strong>地图</strong>
+              <span>2 类</span>
+            </div>
+            <div class="asset-subcategory-list">
+              <button
+                class="asset-subcategory is-active"
+                type="button"
+                data-asset-category="background"
+              >
+                <span>
+                  <i class="asset-subcategory-dot is-background"></i>
+                  背景
+                </span>
+                <span data-asset-count>0</span>
+              </button>
+              <button
+                class="asset-subcategory"
+                type="button"
+                data-asset-category="entity"
+              >
+                <span>
+                  <i class="asset-subcategory-dot is-entity"></i>
+                  动画
+                </span>
+                <span data-asset-count>0</span>
+              </button>
+            </div>
+          </div>
+          <p class="asset-scope-note">
+            素材保存在编辑器工作区，暂不与游戏资源建立关联。
+          </p>
+        </aside>
+
+        <section class="asset-collection">
+          <div class="asset-collection-heading">
+            <div>
+              <span class="asset-breadcrumb" id="asset-breadcrumb">
+                地图 / 背景
+              </span>
+              <h3 id="asset-category-title">背景素材</h3>
+            </div>
+            <div class="asset-collection-actions">
+              <button
+                class="button button-quiet"
+                id="refresh-assets"
+                type="button"
+              >
+                刷新
+              </button>
+              <button
+                class="button button-primary"
+                id="upload-assets"
+                type="button"
+              >
+                上传素材
+              </button>
+              <input
+                id="asset-file-input"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                multiple
+                hidden
+              />
+            </div>
+          </div>
+
+          <div class="asset-drop-zone" id="asset-drop-zone">
+            <div class="asset-drop-hint" id="asset-drop-hint">
+              将图片拖到这里，或点击“上传素材” · 右键素材可查看或删除
+            </div>
+            <div class="asset-grid" id="asset-grid"></div>
+            <div class="asset-empty" id="asset-empty" hidden>
+              <span class="asset-empty-mark" aria-hidden="true">◇</span>
+              <strong id="asset-empty-title">还没有背景素材</strong>
+              <span id="asset-empty-description">
+                将图片拖到这里，或使用右上角“上传素材”。
+              </span>
+            </div>
+          </div>
+
+          <div class="asset-dialog-footer">
+            <span id="asset-status" aria-live="polite">
+              正在读取工作区素材…
+            </span>
+            <span>支持 PNG、JPG、WebP、GIF、SVG · 单个不超过 20 MB</span>
+          </div>
+        </section>
+      </div>
+
+      <div
+        class="asset-context-menu"
+        id="asset-context-menu"
+        role="menu"
+        aria-label="素材操作"
+        hidden
+      >
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-asset-action="frame-rate"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">◷</span>
+          <span>
+            <strong>帧速</strong>
+            <small id="asset-context-frame-rate">8 FPS</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-asset-action="view"
+        >
+          <span class="asset-context-icon" aria-hidden="true">⌕</span>
+          <span>
+            <strong>查看</strong>
+            <small>放大并缩放图片</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item is-danger"
+          type="button"
+          role="menuitem"
+          data-asset-action="delete"
+        >
+          <span class="asset-context-icon" aria-hidden="true">⌫</span>
+          <span>
+            <strong>删除</strong>
+            <small>从工作区移除素材</small>
+          </span>
+        </button>
+      </div>
+
+      <section
+        class="asset-image-viewer"
+        id="asset-image-viewer"
+        aria-label="放大查看素材"
+        hidden
+      >
+        <div class="asset-viewer-toolbar">
+          <div class="asset-viewer-heading">
+            <strong id="asset-viewer-name">素材预览</strong>
+            <span id="asset-viewer-meta">滚轮缩放 · 拖动平移 · 双击复位</span>
+          </div>
+          <div class="asset-viewer-controls">
+            <button
+              class="icon-button"
+              id="asset-viewer-zoom-out"
+              type="button"
+              aria-label="缩小"
+            >
+              −
+            </button>
+            <span class="asset-viewer-zoom" id="asset-viewer-zoom">
+              100%
+            </span>
+            <button
+              class="icon-button"
+              id="asset-viewer-zoom-in"
+              type="button"
+              aria-label="放大"
+            >
+              +
+            </button>
+            <button
+              class="button button-quiet"
+              id="asset-viewer-fit"
+              type="button"
+            >
+              适应
+            </button>
+            <button
+              class="icon-button"
+              id="close-asset-viewer"
+              type="button"
+              aria-label="关闭预览"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <div class="asset-viewer-canvas" id="asset-viewer-canvas">
+          <img
+            class="asset-viewer-image"
+            id="asset-viewer-image"
+            alt=""
+            draggable="false"
+          />
+          <canvas
+            class="asset-viewer-image"
+            id="asset-viewer-sprite"
+            aria-label="动画素材预览"
+            hidden
+          ></canvas>
+        </div>
+      </section>
+
+      <div
+        class="asset-frame-rate-panel"
+        id="asset-frame-rate-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="asset-frame-rate-title"
+        hidden
+      >
+        <div class="asset-frame-rate-dialog">
+          <div class="asset-frame-rate-heading">
+            <div>
+              <span class="inspector-eyebrow">动画素材</span>
+              <h3 id="asset-frame-rate-title">调节帧速</h3>
+            </div>
+          </div>
+          <div class="asset-frame-rate-layout">
+            <section class="asset-frame-rate-preview-panel">
+              <span class="asset-frame-rate-preview-label">实时预览</span>
+              <canvas
+                class="asset-frame-rate-preview"
+                id="asset-frame-rate-preview"
+                aria-label="帧速动画预览"
+              ></canvas>
+            </section>
+            <section class="asset-frame-rate-controls">
+              <div class="asset-frame-rate-meta">
+                <strong id="asset-frame-rate-name">动画.png</strong>
+                <span id="asset-frame-rate-detail">4 帧</span>
+              </div>
+              <label class="asset-frame-rate-field">
+                <span>播放速度</span>
+                <input
+                  id="asset-frame-rate-range"
+                  type="range"
+                  min="1"
+                  max="60"
+                  step="1"
+                  value="8"
+                />
+              </label>
+              <div class="asset-frame-rate-stepper">
+                <button
+                  id="increase-frame-rate"
+                  type="button"
+                  aria-label="提高帧速"
+                >
+                  ▲
+                </button>
+                <input
+                  id="asset-frame-rate-number"
+                  type="number"
+                  min="1"
+                  max="60"
+                  step="1"
+                  value="8"
+                  aria-label="每秒帧数"
+                />
+                <button
+                  id="decrease-frame-rate"
+                  type="button"
+                  aria-label="降低帧速"
+                >
+                  ▼
+                </button>
+                <span>FPS</span>
+              </div>
+              <p class="asset-frame-rate-hint">
+                调节时会立即更新动画，确认后保存到素材元数据。
+              </p>
+            </section>
+          </div>
+          <div class="asset-frame-rate-actions">
+            <button
+              class="button button-primary"
+              id="confirm-frame-rate"
+              type="button"
+            >
+              确认
+            </button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog
+      class="background-picker-dialog"
+      id="background-picker-dialog"
+      aria-labelledby="background-picker-title"
+    >
+      <div class="background-picker-heading">
+        <div>
+          <span class="inspector-eyebrow">素材库 / 地图 / 背景</span>
+          <h2 id="background-picker-title">选择关卡背景</h2>
+          <p>导入后会用所选素材替换当前关卡的背景图。</p>
+        </div>
+        <div class="background-picker-actions">
+          <button
+            class="button button-quiet"
+            id="refresh-background-picker"
+            type="button"
+          >
+            刷新
+          </button>
+          <button
+            class="icon-button"
+            id="close-background-picker"
+            type="button"
+            aria-label="关闭背景选择"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div
+        class="background-picker-grid"
+        id="background-picker-grid"
+      ></div>
+      <div
+        class="background-picker-empty"
+        id="background-picker-empty"
+        hidden
+      >
+        <span aria-hidden="true">◇</span>
+        <strong>还没有背景素材</strong>
+        <p>请先在顶部“素材库 → 地图 → 背景”中上传背景图片。</p>
+      </div>
+      <div class="background-picker-footer">
+        <span id="background-picker-status" aria-live="polite">
+          正在读取背景素材…
+        </span>
+        <span>背景将复制到游戏项目并随关卡保存。</span>
+      </div>
+    </dialog>
+
+    <dialog class="shortcut-dialog" id="shortcut-dialog">
+      <div class="dialog-heading">
+        <div>
+          <span class="inspector-eyebrow">操作说明</span>
+          <h2>地图编辑器快捷键</h2>
+        </div>
+        <button class="icon-button" id="close-help" type="button">×</button>
+      </div>
+      <div class="shortcut-grid">
+        <span><kbd>V</kbd> 选择工具</span>
+        <span>左键拖空白区域 平移地图</span>
+        <span><kbd>R</kbd> 绘制地形</span>
+        <span><kbd>A</kbd> 放置角色</span>
+        <span><kbd>I</kbd> 放置道具</span>
+        <span><kbd>M</kbd> 放置机关、闸门、入口或出口</span>
+        <span><kbd>D</kbd> 删除对象</span>
+        <span>中键拖动 平移视图</span>
+        <span>滚轮 以指针为中心缩放</span>
+        <span><kbd>Ctrl</kbd> + <kbd>Z</kbd> 撤销</span>
+        <span><kbd>Ctrl</kbd> + <kbd>Y</kbd> 重做</span>
+        <span><kbd>Delete</kbd> 删除选中对象</span>
+        <span>方向键 微调选中对象</span>
+        <span><kbd>Ctrl</kbd> + <kbd>S</kbd> 保存到游戏</span>
+        <span><kbd>0</kbd> 适应窗口</span>
+      </div>
+      <p class="dialog-note">
+        所有坐标均为世界坐标；矩形对象使用中心点定位，与游戏运行时格式一致。
+      </p>
+    </dialog>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+    <script src="./vendor/phaser/phaser.min.js"></script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

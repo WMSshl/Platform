@@ -1,0 +1,9 @@
+node_modules/
+.editor-backups/
+.playwright-mcp/
+*.pid
+editor-*.png
+game-*.png
+tests/.smoke-project/
+tests/.game-integration/
+tests/.game-patch-check/

@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "id": "level-001",
+  "name": "低语庭院",
+  "world": {
+    "width": 2800,
+    "height": 1400,
+    "backgroundColor": "#0f172a"
+  },
+  "camera": {
+    "lerpX": 0.1,
+    "lerpY": 0.12,
+    "deadzoneWidth": 180,
+    "deadzoneHeight": 110
+  },
+  "spawnPoints": [
+    {
+      "id": "spawn-start",
+      "name": "默认出生点",
+      "x": 150,
+      "y": 1220
+    }
+  ],
+  "initialSpawnId": "spawn-start",
+  "solids": [
+    {
+      "id": "ground",
+      "x": 1400,
+      "y": 1350,
+      "width": 2800,
+      "height": 100,
+      "color": "#334155"
+    },
+    {
+      "id": "step-1",
+      "x": 460,
+      "y": 1180,
+      "width": 260,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "step-2",
+      "x": 800,
+      "y": 1060,
+      "width": 260,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "step-3",
+      "x": 1140,
+      "y": 950,
+      "width": 260,
+      "height": 32,
+      "color": "#475569"
+    },
+    {
+      "id": "step-4",
+      "x": 620,
+      "y": 830,
+      "width": 180,
+      "height": 32,
+      "color": "#64748b"
+    }
+  ],
+  "actors": [
+    {
+      "instanceId": "guard-1",
+      "actorId": "guard",
+      "x": 1500,
+      "y": 1240
+    }
+  ],
+  "items": [
+    {
+      "instanceId": "pickup-herb-1",
+      "itemId": "healing-herb",
+      "quantity": 1,
+      "x": 900,
+      "y": 1240
+    }
+  ],
+  "mechanisms": [
+    {
+      "id": "lever-1",
+      "type": "switch",
+      "x": 1870,
+      "y": 1260,
+      "width": 36,
+      "height": 64,
+      "color": "#facc15",
+      "interactionRange": 100,
+      "targetGateId": "gate-1",
+      "storyFlag": "garden_gate_opened",
+      "prompt": "按 E 启动机关"
+    },
+    {
+      "id": "gate-1",
+      "x": 2240,
+      "y": 1210,
+      "width": 36,
+      "height": 180,
+      "color": "#eab308",
+      "type": "gate"
+    },
+    {
+      "id": "level-001-entrance-main",
+      "type": "entrance",
+      "x": 2400,
+      "y": 1230,
+      "width": 100,
+      "height": 140,
+      "color": "#22d3ee",
+      "activation": "player-center-touch",
+      "targetExitId": "level-002-exit-main"
+    }
+  ]
+}

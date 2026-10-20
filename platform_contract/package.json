@@ -1,0 +1,14 @@
+{
+  "name": "contract",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "穹顶回响跨项目数据协议、校验与迁移",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "check": "node tools/check-project.mjs",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

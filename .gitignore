@@ -1,0 +1,9 @@
+node_modules/
+.pnpm-store/
+.playwright-mcp/
+.git-history/
+*.log
+
+platform_editor/.editor-backups/
+platform_editor/.playwright-mcp/
+platform_dome/.playwright-mcp/

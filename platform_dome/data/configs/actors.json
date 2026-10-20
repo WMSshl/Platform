@@ -1,0 +1,110 @@
+{
+  "player": {
+    "id": "player",
+    "type": "player",
+    "name": "主角",
+    "appearance": {
+      "color": "#38bdf8",
+      "accentColor": "#e0f2fe",
+      "width": 44,
+      "height": 72,
+      "textureKey": "player:idle",
+      "spriteScale": 3,
+      "frameWidth": 112,
+      "frameHeight": 96,
+      "bodyOffsetX": 47.5,
+      "bodyOffsetY": 49
+    },
+    "physics": {
+      "bodyWidth": 51,
+      "bodyHeight": 102
+    },
+    "stats": {
+      "maxHealth": 100,
+      "attack": 18,
+      "defense": 4,
+      "moveSpeed": 280,
+      "jumpVelocity": -881.8,
+      "maxStamina": 100,
+      "staminaRegenPerSecond": 20,
+      "staminaRegenDelayMs": 600,
+      "sprintCostPerSecond": 5,
+      "sprintSpeedMultiplier": 1.6
+    },
+    "defense": {
+      "staminaCost": 15,
+      "activeMs": 200,
+      "cooldownMs": 300,
+      "guardDurationTalentBonusMs": 100
+    },
+    "combat": {
+      "attackSkillId": "player-melee-strike",
+      "counterSkillId": "player-guard-counter"
+    },
+    "startingInventory": {
+      "healing-herb": 1
+    }
+  },
+  "guard": {
+    "id": "guard",
+    "type": "enemy",
+    "name": "遗迹守卫",
+    "appearance": {
+      "color": "#fb7185",
+      "accentColor": "#fecdd3",
+      "width": 48,
+      "height": 70,
+      "spriteScale": 1.5
+    },
+    "physics": {
+      "bodyWidth": 57,
+      "bodyHeight": 99
+    },
+    "stats": {
+      "maxHealth": 60,
+      "attack": 12,
+      "defense": 2,
+      "moveSpeed": 108,
+      "jumpVelocity": 0
+    },
+    "behavior": {
+      "detectionRange": 360,
+      "patrolDistance": 170,
+      "patrolPauseMs": 850
+    },
+    "combat": {
+      "attackSkillId": "enemy-melee-slash"
+    }
+  },
+  "npc-guide": {
+    "id": "npc-guide",
+    "type": "npc",
+    "name": "引路人",
+    "appearance": {
+      "color": "#a78bfa",
+      "accentColor": "#ddd6fe",
+      "width": 42,
+      "height": 68,
+      "spriteScale": 1.5
+    },
+    "physics": {
+      "bodyWidth": 51,
+      "bodyHeight": 96
+    },
+    "stats": {
+      "maxHealth": 100,
+      "attack": 0,
+      "defense": 0,
+      "moveSpeed": 0,
+      "jumpVelocity": 0
+    },
+    "dialogue": {
+      "defaultNodeId": "welcome",
+      "nodes": {
+        "welcome": {
+          "text": "这里是 NPC 对话系统的数据占位。后续增加对话框时可以直接读取这段配置。"
+        }
+      }
+    }
+  }
+}

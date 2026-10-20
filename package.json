@@ -1,0 +1,16 @@
+{
+  "name": "platform-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "scripts": {
+    "test": "pnpm -r test",
+    "check": "pnpm -r check",
+    "test:contract": "pnpm --filter contract test",
+    "check:contract": "pnpm --filter contract check",
+    "test:editor": "pnpm --filter platform-dome-map-editor test",
+    "check:editor": "pnpm --filter platform-dome-map-editor check",
+    "test:dome": "pnpm --filter platform-dome test",
+    "check:dome": "pnpm --filter platform-dome check"
+  }
+}
