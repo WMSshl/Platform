@@ -35,6 +35,18 @@ export const ASSET_CATEGORIES = [
         id: "entity",
         label: "动画",
         storageSegments: ["map", "entities"]
+      },
+      {
+        id: "static",
+        label: "静态贴图",
+        storageSegments: ["map", "static-textures"],
+        allowedExtensions: [".png"]
+      },
+      {
+        id: "tiled",
+        label: "Tiled 地图",
+        storageSegments: ["map", "tiled"],
+        allowedExtensions: [".json", ".tmj"]
       }
     ]
   }
@@ -171,6 +183,22 @@ function normalizeFrameRate(value, fallback = 8) {
     : fallback;
 }
 
+function validateCategoryExtension(category, fileName) {
+  if (!category.allowedExtensions?.length) {
+    return;
+  }
+  const extension = extname(fileName).toLowerCase();
+  if (!category.allowedExtensions.includes(extension)) {
+    const formats = category.allowedExtensions
+      .map((item) => item.slice(1).toUpperCase())
+      .join("、");
+    throw new AssetStorageError(
+      400,
+      `${category.label}分类仅支持 ${formats} 图片`
+    );
+  }
+}
+
 async function getAvailablePath(directory, fileName) {
   const extension = extname(fileName);
   const stem = basename(fileName, extension);
@@ -206,6 +234,7 @@ export async function saveAsset(
 ) {
   const category = getAssetCategory(categoryId);
   const normalized = normalizeAssetFileName(rawFileName);
+  validateCategoryExtension(category, normalized.fileName);
   const mimeType = validateAssetContentType(
     normalized.fileName,
     contentType
@@ -378,6 +407,105 @@ export async function updateAssetMetadata(
   );
   await rename(temporaryPath, metadataPath);
   return metadata;
+}
+
+export async function renameAsset(
+  assetRoot,
+  {
+    categoryId,
+    fileName: rawFileName,
+    newFileName: rawNewFileName
+  }
+) {
+  const category = getAssetCategory(categoryId);
+  const normalized = normalizeAssetFileName(rawFileName);
+  const requestedName = String(rawFileName ?? "").normalize("NFC");
+  if (normalized.fileName !== requestedName) {
+    throw new AssetStorageError(400, "素材文件名不合法");
+  }
+
+  const nextNormalized = normalizeAssetFileName(rawNewFileName);
+  const requestedNewName = String(rawNewFileName ?? "").normalize(
+    "NFC"
+  );
+  if (nextNormalized.fileName !== requestedNewName) {
+    throw new AssetStorageError(400, "新素材文件名不合法");
+  }
+  validateCategoryExtension(category, nextNormalized.fileName);
+
+  if (
+    nextNormalized.extension !== normalized.extension
+  ) {
+    throw new AssetStorageError(
+      400,
+      "重命名不能修改文件后缀"
+    );
+  }
+  if (nextNormalized.fileName === normalized.fileName) {
+    return {
+      categoryId,
+      previousFileName: normalized.fileName,
+      fileName: normalized.fileName
+    };
+  }
+
+  const directory = join(
+    assetRoot,
+    ...category.storageSegments
+  );
+  const sourcePath = join(directory, normalized.fileName);
+  const targetPath = join(directory, nextNormalized.fileName);
+  const sourceMetadataPath = getAssetMetadataPath(sourcePath);
+  const targetMetadataPath = getAssetMetadataPath(targetPath);
+
+  try {
+    const sourceStat = await stat(sourcePath);
+    if (!sourceStat.isFile()) {
+      throw new AssetStorageError(400, "素材不是文件");
+    }
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new AssetStorageError(404, "素材不存在");
+    }
+    throw error;
+  }
+
+  for (const occupiedPath of [targetPath, targetMetadataPath]) {
+    try {
+      await stat(occupiedPath);
+      throw new AssetStorageError(409, "同名素材已存在");
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  let hasMetadata = false;
+  try {
+    const metadataStat = await stat(sourceMetadataPath);
+    hasMetadata = metadataStat.isFile();
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  await rename(sourcePath, targetPath);
+  if (hasMetadata) {
+    try {
+      await rename(sourceMetadataPath, targetMetadataPath);
+    } catch (error) {
+      await rename(targetPath, sourcePath).catch(() => {});
+      throw error;
+    }
+  }
+
+  return {
+    categoryId,
+    previousFileName: normalized.fileName,
+    fileName: nextNormalized.fileName
+  };
 }
 
 export async function deleteAsset(

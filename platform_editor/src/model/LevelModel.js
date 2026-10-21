@@ -394,6 +394,39 @@ export function insertPlacedObject(level, tool, payload = {}) {
   return { object, selection: getObjectSelection(section, object) };
 }
 
+/**
+ * 背景只替换素材，不决定关卡世界尺寸。
+ * 图片和 Tiled 地图都以当前 world 为唯一尺寸来源。
+ */
+export function setLevelBackground(level, background) {
+  if (!level?.world || !background?.type) {
+    return false;
+  }
+  level.world.background = structuredClone(background);
+  return true;
+}
+
+export function restoreLevelBackgroundAspect(level) {
+  const background = level?.world?.background;
+  const width = Number(level?.world?.width);
+  const sourceWidth = Number(background?.sourceWidth);
+  const sourceHeight = Number(background?.sourceHeight);
+  if (
+    background?.type !== "tiled" ||
+    !(width > 0) ||
+    !(sourceWidth > 0) ||
+    !(sourceHeight > 0)
+  ) {
+    return false;
+  }
+  level.world.height = Math.max(
+    240,
+    Math.round(width * (sourceHeight / sourceWidth))
+  );
+  delete background.fit;
+  return true;
+}
+
 export function setSpawnPointPosition(level, spawnId, x, y) {
   const spawn = level.spawnPoints?.find((item) => item.id === spawnId);
   if (!spawn) {

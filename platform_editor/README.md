@@ -1,12 +1,13 @@
 # 穹顶回响地图编辑器
 
 面向同工作区 `platform_dome` 的浏览器地图编辑器。编辑器使用原生
-HTML、JavaScript ES Modules 和 Phaser.js，不需要打包，也不需要安装第三方运行时依赖。
+HTML、JavaScript ES Modules 和 Phaser.js，不需要打包；本地服务使用
+`fast-xml-parser` 解析 Tiled JSON 引用的外部 TSX。
 
 ## 职责
 只负责产出符合 contract 的数据，不实现任何运行时逻辑。
 需要新的运行时能力 → 在 contract 里声明，不准在此塞 dome 的代码。
-共享协议位于 `platform_contract/`，当前关卡 schema 版本为 `1`。
+共享协议位于 `platform_contract/`，当前关卡 schema 版本为 `3`。
 
 ## 扩展性
 新增可编辑对象类型走 registry 注册，禁止在 switch/if 链里加分支。
@@ -65,7 +66,13 @@ http://127.0.0.1:8090
 - 右键素材卡片可“查看”或“删除”。查看支持滚轮缩放、拖动平移和双击复位。
 - 地图画布和素材预览的缩放统一使用邻近采样，放大时保持像素硬边缘。
 - 地图滚轮缩放以鼠标所在位置为中心，连续缩放时鼠标下的世界坐标保持不动。
-- 关卡设置可从素材库导入背景素材；导入时会把资源同步到游戏项目，并写入 `world.backgroundAsset`。
+- 关卡设置可从素材库导入单图背景或 Tiled 背景地图；两者统一保存到 `world.background`，导入时会把资源同步到游戏项目。
+- Tiled 地图通过文件夹导入，地图文件为 `.json` 或 `.tmj`；文件夹内可同时包含外部 `.tsx` 和 tileset 图片。
+- 文件夹中存在多个 Tiled 地图时会显示候选列表，可一次选择导入一个或多个地图；素材名称直接使用对应 JSON/TMJ 文件名。
+- 与素材库现有 Tiled 地图重名时会询问是否覆盖；确认后原子替换原素材并保留素材 ID，不再自动追加序号。
+- Tiled 背景使用 Phaser 原生 Tilemap 渲染，与单图一样随世界尺寸铺满；碰撞按世界比例变换，并以浅绿色只读覆盖层显示。
+- Tiled 碰撞来自碰撞对象层、tileset Collision Editor 和瓦片 `collides` 属性；单向平台属性映射到现有 `platform` 碰撞。
+- Tiled `tiles[].animation` 会保留到运行时，并在编辑器和游戏内按帧时长播放；同名 tileset 会按 `firstGid` 自动生成唯一名称。
 - 所有对象都可拖四角等比缩放、拖四边单轴缩放；导入素材与角色类型不再限制缩放方向。
 - 选中对象后，上方显示左右微调箭头，右侧显示上下微调箭头，每次点击固定移动 1 像素。
 - 选择工具下点击地图背景即可选中地图，并显示边界手柄；可通过四角和四边调整世界尺寸。
@@ -73,11 +80,13 @@ http://127.0.0.1:8090
 
 ## 素材库
 
-素材只保存在编辑器当前工作区，不写入游戏目录，也暂不参与关卡引用。
+素材原始副本保存在编辑器当前工作区；作为关卡背景导入时，选中的
+图片或 Tiled 地图素材组会复制到游戏目录并写入关卡引用。
 
 ```text
 platform_editor/assets/map/backgrounds
 platform_editor/assets/map/entities
+platform_editor/assets/map/tiled
 ```
 
 支持 `PNG`、`JPG`、`WebP`、`GIF` 和 `SVG`，单个文件最大 20 MB。重名文件会自动追加序号，不会覆盖已有素材。
@@ -92,8 +101,9 @@ platform_editor/assets/map/entities
 
 ## 跨项目表现协议
 
-- 当前关卡 `schemaVersion = 1`；旧数据由 contract 的迁移函数升级。
-- 关卡背景：`world.backgroundAsset = { id, path, fileName, fit, revision }`。
+- 当前关卡 `schemaVersion = 3`；旧背景字段由 contract 的迁移函数统一升级。
+- 图片背景：`world.background = { type: "image", id, path, fileName, fit, revision }`。
+- Tiled 背景：`world.background = { type: "tiled", ... }`，保存源 JSON/TMJ、运行时 Tiled JSON、tileset 和地图局部碰撞矩形。
 - `id` 指向编辑器素材库中的背景；`path` 是游戏项目内可读取的资源路径。
 - 角色实例使用 `scaleX`、`scaleY` 表示水平与垂直缩放；旧 `scale` 仍可作为兼容输入。
 - 道具实例可使用 `width`、`height` 覆盖配置中的默认尺寸。

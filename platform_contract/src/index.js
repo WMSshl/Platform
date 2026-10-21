@@ -8,6 +8,12 @@ export {
   normalizeSolidTerrainType
 } from "./level/schema.js";
 export {
+  getTiledBackgroundBounds,
+  getTiledBackgroundCollisionRects,
+  getUniqueTiledTilesetNames,
+  TiledTileAnimations
+} from "./level/tiled-background.js";
+export {
   createEmptyLevel,
   migrateLevelDocument,
   normalizeLevel

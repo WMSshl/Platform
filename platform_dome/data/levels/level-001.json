@@ -1,12 +1,13 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "id": "level-001",
   "name": "低语庭院",
   "world": {
     "width": 2800,
     "height": 1399,
     "backgroundColor": "#0f172a",
-    "backgroundAsset": {
+    "background": {
+      "type": "image",
       "id": "map/backgrounds/demo.png",
       "path": "assets/map/backgrounds/demo.png",
       "fileName": "demo.png",
@@ -181,15 +182,6 @@
       "y": 1068,
       "width": 64,
       "height": 64,
-      "terrainType": "ground",
-      "color": "#475569"
-    },
-    {
-      "id": "solid-18",
-      "x": 1088,
-      "y": 992,
-      "width": 912,
-      "height": 272,
       "terrainType": "ground",
       "color": "#475569"
     }

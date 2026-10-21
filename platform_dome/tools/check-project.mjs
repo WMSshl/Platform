@@ -62,6 +62,17 @@ for (const directoryName of ["src", "tools", "tests"]) {
     if (result.status !== 0) {
       errors.push(`语法错误：${file}\n${result.stderr}`);
     }
+    const source = await readFile(file, "utf8");
+    const imports = [
+      ...source.matchAll(/from\s+["']([^"']+)["']/g)
+    ].map((match) => match[1]);
+    if (
+      imports.some((specifier) =>
+        /platform_editor/.test(specifier)
+      )
+    ) {
+      errors.push(`dome 不得直接引用 editor：${file}`);
+    }
   }
 }
 
@@ -130,8 +141,8 @@ if (actors && skills && items && talents) {
 }
 
 for (const level of levels) {
-  const background = level.world?.backgroundAsset;
-  if (background) {
+  const background = level.world?.background;
+  if (background?.type === "image") {
     const backgroundPath = resolve(
       projectRoot,
       String(background.path ?? "")
@@ -150,6 +161,45 @@ for (const level of levels) {
       } catch {
         errors.push(
           `关卡 ${level.id} 的背景素材不存在：${background.path}`
+        );
+      }
+    }
+  }
+
+  if (background?.type === "tiled") {
+    const references = [
+      ["原始 Tiled 地图", background.sourcePath],
+      ["Tiled JSON", background.mapPath],
+      ...(background.tilesets ?? []).map(
+        (tileset, index) => [
+          `tileset ${index + 1} 图片`,
+          tileset.imagePath
+        ]
+      )
+    ];
+    for (const [label, relativePath] of references) {
+      const resolvedPath = resolve(
+        projectRoot,
+        String(relativePath ?? "")
+      );
+      if (
+        !resolvedPath.startsWith(`${projectRoot}${sep}`)
+      ) {
+        errors.push(
+          `关卡 ${level.id} 的${label}路径越出项目：${relativePath}`
+        );
+        continue;
+      }
+      try {
+        const fileStat = await stat(resolvedPath);
+        if (!fileStat.isFile()) {
+          errors.push(
+            `关卡 ${level.id} 的${label}不是文件：${relativePath}`
+          );
+        }
+      } catch {
+        errors.push(
+          `关卡 ${level.id} 的${label}不存在：${relativePath}`
         );
       }
     }

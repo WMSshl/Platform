@@ -10,6 +10,7 @@ import {
 const colorPattern = /^#[0-9a-fA-F]{6}$/;
 const mechanismTypes = new Set(MECHANISM_TYPES);
 const solidTerrainTypes = new Set(SOLID_TERRAIN_TYPES);
+const assetPathPattern = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\\]+$/;
 
 export class ContractValidationError extends Error {
   constructor(issues) {
@@ -30,6 +31,263 @@ function isFiniteNumber(value) {
 
 function pushIssue(issues, severity, message, selection = null) {
   issues.push({ severity, message, selection });
+}
+
+function isSafeAssetPath(value) {
+  return (
+    typeof value === "string" &&
+    assetPathPattern.test(value) &&
+    !value.includes("://")
+  );
+}
+
+function validateTiledBackground(issues, backgroundMap) {
+  if (
+    !backgroundMap ||
+    typeof backgroundMap !== "object" ||
+    Array.isArray(backgroundMap)
+  ) {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景地图描述必须是对象",
+      { section: "level" }
+    );
+    return;
+  }
+
+  for (const pathField of ["sourcePath", "mapPath"]) {
+    if (!isSafeAssetPath(backgroundMap[pathField])) {
+      pushIssue(
+        issues,
+        "error",
+        `背景地图 ${pathField} 必须是安全的项目相对路径`,
+        { section: "level" }
+      );
+    }
+  }
+  for (const textField of ["id", "fileName", "revision"]) {
+    if (
+      typeof backgroundMap[textField] !== "string" ||
+      !backgroundMap[textField]
+    ) {
+      pushIssue(
+        issues,
+        "error",
+        `背景地图 ${textField} 不能为空`,
+        { section: "level" }
+      );
+    }
+  }
+  for (const dimension of [
+    "sourceWidth",
+    "sourceHeight",
+    "tileWidth",
+    "tileHeight"
+  ]) {
+    if (
+      !isFiniteNumber(backgroundMap[dimension]) ||
+      Number(backgroundMap[dimension]) <= 0
+    ) {
+      pushIssue(
+        issues,
+        "error",
+        `背景地图 ${dimension} 必须大于 0`,
+        { section: "level" }
+      );
+    }
+  }
+  if (!Array.isArray(backgroundMap.tilesets)) {
+    pushIssue(
+      issues,
+      "error",
+      "背景地图 tilesets 必须是数组",
+      { section: "level" }
+    );
+  } else if (backgroundMap.tilesets.length === 0) {
+    pushIssue(
+      issues,
+      "error",
+      "背景地图至少需要一个 tileset",
+      { section: "level" }
+    );
+  } else {
+    const tilesetNames = new Set();
+    for (const [index, tileset] of backgroundMap.tilesets.entries()) {
+      const label = `背景地图 tileset「${tileset?.name ?? index + 1}」`;
+      if (
+        !tileset?.name ||
+        !Number.isInteger(Number(tileset.firstGid)) ||
+        Number(tileset.firstGid) <= 0
+      ) {
+        pushIssue(
+          issues,
+          "error",
+          `${label}缺少 name 或 firstGid`,
+          { section: "level" }
+        );
+      }
+      if (tileset?.name) {
+        if (tilesetNames.has(tileset.name)) {
+          pushIssue(
+            issues,
+            "error",
+            `背景地图 tileset 名称重复：${tileset.name}`,
+            { section: "level" }
+          );
+        }
+        tilesetNames.add(tileset.name);
+      }
+      if (!isSafeAssetPath(tileset?.imagePath)) {
+        pushIssue(
+          issues,
+          "error",
+          `${label}的 imagePath 不安全`,
+          { section: "level" }
+        );
+      }
+      for (const dimension of [
+        "imageWidth",
+        "imageHeight",
+        "tileWidth",
+        "tileHeight",
+        "columns",
+        "tileCount"
+      ]) {
+        if (
+          !isFiniteNumber(tileset?.[dimension]) ||
+          Number(tileset[dimension]) <= 0
+        ) {
+          pushIssue(
+            issues,
+            "error",
+            `${label}的 ${dimension} 必须大于 0`,
+            { section: "level" }
+          );
+        }
+      }
+      for (const offset of ["margin", "spacing"]) {
+        if (
+          tileset?.[offset] !== undefined &&
+          (!isFiniteNumber(tileset[offset]) ||
+            Number(tileset[offset]) < 0)
+        ) {
+          pushIssue(
+            issues,
+            "error",
+            `${label}的 ${offset} 不能为负数`,
+            { section: "level" }
+          );
+        }
+      }
+      if (tileset?.animations !== undefined) {
+        if (!Array.isArray(tileset.animations)) {
+          pushIssue(
+            issues,
+            "error",
+            `${label}的 animations 必须是数组`,
+            { section: "level" }
+          );
+        } else {
+          for (const animation of tileset.animations) {
+            if (
+              !Number.isInteger(Number(animation?.tileId)) ||
+              Number(animation.tileId) < 0 ||
+              !Array.isArray(animation.frames) ||
+              animation.frames.length === 0
+            ) {
+              pushIssue(
+                issues,
+                "error",
+                `${label}包含无效动画瓦片`,
+                { section: "level" }
+              );
+              continue;
+            }
+            for (const frame of animation.frames) {
+              if (
+                !Number.isInteger(Number(frame?.tileId)) ||
+                Number(frame.tileId) < 0 ||
+                !isFiniteNumber(frame?.duration) ||
+                Number(frame.duration) <= 0
+              ) {
+                pushIssue(
+                  issues,
+                  "error",
+                  `${label}的动画帧无效`,
+                  { section: "level" }
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (!Array.isArray(backgroundMap.collisions)) {
+    pushIssue(
+      issues,
+      "error",
+      "背景地图 collisions 必须是数组",
+      { section: "level" }
+    );
+    return;
+  }
+  const collisionIds = new Set();
+  for (const [index, collision] of backgroundMap.collisions.entries()) {
+    const label = `背景地图碰撞「${collision?.id || index + 1}」`;
+    if (!collision?.id) {
+      pushIssue(
+        issues,
+        "error",
+        `${label}缺少 ID`,
+        { section: "level" }
+      );
+    } else if (collisionIds.has(collision.id)) {
+      pushIssue(
+        issues,
+        "error",
+        `${label}的 ID 重复`,
+        { section: "level" }
+      );
+    }
+    if (collision?.id) {
+      collisionIds.add(collision.id);
+    }
+    for (const dimension of ["width", "height"]) {
+      if (
+        !isFiniteNumber(collision?.[dimension]) ||
+        Number(collision[dimension]) <= 0
+      ) {
+        pushIssue(
+          issues,
+          "error",
+          `${label}的 ${dimension} 必须大于 0`,
+          { section: "level" }
+        );
+      }
+    }
+    if (
+      !isFiniteNumber(collision?.x) ||
+      !isFiniteNumber(collision?.y)
+    ) {
+      pushIssue(
+        issues,
+        "error",
+        `${label}坐标无效`,
+        { section: "level" }
+      );
+    }
+    if (!solidTerrainTypes.has(collision?.terrainType)) {
+      pushIssue(
+        issues,
+        "error",
+        `${label}的 terrainType 必须是 ground 或 platform`,
+        { section: "level" }
+      );
+    }
+  }
 }
 
 function getObjectSelection(section, object) {
@@ -173,27 +431,33 @@ export function validateLevel(
       { section: "level" }
     );
   }
-  if (level.world?.backgroundAsset) {
-    const background = level.world.backgroundAsset;
-    if (
-      typeof background.id !== "string" ||
-      !background.id ||
-      typeof background.path !== "string" ||
-      !background.path
-    ) {
+  if (level.world?.background) {
+    const background = level.world.background;
+    if (!["image", "tiled"].includes(background.type)) {
       pushIssue(
         issues,
         "error",
-        "关卡背景素材描述不完整",
+        "背景 type 必须是 image 或 tiled",
         { section: "level" }
       );
-    } else if (background.fit !== "stretch") {
-      pushIssue(
-        issues,
-        "error",
-        "关卡背景素材的 fit 必须是 stretch",
-        { section: "level" }
-      );
+    } else if (background.type === "image") {
+      if (
+        ["id", "path", "fileName", "revision"].some(
+          (field) =>
+            typeof background[field] !== "string" ||
+            !background[field]
+        ) ||
+        background.fit !== "stretch"
+      ) {
+        pushIssue(
+          issues,
+          "error",
+          "图片背景描述不完整",
+          { section: "level" }
+        );
+      }
+    } else {
+      validateTiledBackground(issues, background);
     }
   }
 

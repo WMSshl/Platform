@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "穹顶回响游戏项目的浏览器地图编辑器",
+  "dependencies": {
+    "fast-xml-parser": "^5.2.5"
+  },
   "scripts": {
     "start": "node tools/dev-server.mjs",
     "check": "node tools/check-project.mjs",

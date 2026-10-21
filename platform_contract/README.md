@@ -10,11 +10,16 @@
 
 ## 版本
 
-当前关卡 schema 版本为 `1`。
+当前关卡 schema 版本为 `3`。
 
 - `schemaVersion` 是可选输入字段；缺失时按旧版数据迁移。
 - 迁移后的文档始终写入当前 `schemaVersion`。
 - 未来版本只能追加可选字段或通过迁移函数改变旧字段含义。
+- 版本 3 使用统一的 `world.background` 判别联合：
+  `type: "image"` 表示单图，`type: "tiled"` 表示 Tiled 地图。
+- 两类背景都绑定 `world` 尺寸，不保存独立位置或缩放。
+- 公共几何函数 `getTiledBackgroundBounds` 与
+  `getTiledBackgroundCollisionRects` 统一处理世界拉伸和碰撞合并。
 
 ## 验证
 

@@ -5,6 +5,7 @@ import {
   getSelectedObject,
   selectionKey
 } from "../model/LevelModel.js";
+import { TiledMapThumbnail } from "./TiledMapThumbnail.js";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -24,6 +25,19 @@ function assetUrl(relativePath, revision = "") {
     ? `?v=${encodeURIComponent(revision)}`
     : "";
   return `/assets/${path}${version}`;
+}
+
+function gameAssetUrl(relativePath, revision = "") {
+  const path = String(relativePath ?? "")
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const version = revision
+    ? `?v=${encodeURIComponent(revision)}`
+    : "";
+  return `/game/${path}${version}`;
 }
 
 function option(value, label, selectedValue) {
@@ -150,9 +164,38 @@ export class Inspector {
       this.currentDocumentEpoch = store.epoch;
       this.lastSignature = signature;
       this.container.innerHTML = this.buildHtml(store);
+      this.startBackgroundMapPreview(store);
     } else {
       this.refreshValues(store);
     }
+  }
+
+  startBackgroundMapPreview(store) {
+    const canvas = this.container.querySelector(
+      "[data-current-background-map]"
+    );
+    const background = store.document.world.background;
+    if (!canvas || background?.type !== "tiled") {
+      return;
+    }
+    const asset = {
+      mapUrl: gameAssetUrl(
+        background.mapPath,
+        background.revision
+      ),
+      tilesets: background.tilesets.map((tileset) => ({
+        ...tileset,
+        url: gameAssetUrl(
+          tileset.imagePath,
+          background.revision
+        )
+      }))
+    };
+    new TiledMapThumbnail(canvas, asset)
+      .start()
+      .catch((error) => {
+        console.warn("当前 Tiled 背景缩略图加载失败", error);
+      });
   }
 
   buildHtml(store) {
@@ -169,7 +212,6 @@ export class Inspector {
     if (selection.section === "spawnPoint") {
       return this.buildSpawnFields(object);
     }
-
     if (selection.section === "solids") {
       return this.buildSolidFields(object);
     }
@@ -192,7 +234,7 @@ export class Inspector {
 
   buildLevelFields(level) {
     const camera = level.camera ?? {};
-    const backgroundAsset = level.world.backgroundAsset;
+    const background = level.world.background;
     const basic = [
       field({
         label: "关卡 ID",
@@ -267,37 +309,63 @@ export class Inspector {
       <div class="field is-wide background-asset-field">
         <label>
           <span>背景素材</span>
-          <span class="field-note">导入后会替换背景图</span>
+          <span class="field-note">图片与 Tiled 地图均随世界尺寸铺满</span>
         </label>
         ${
-          backgroundAsset
+          background?.type === "image"
             ? `
               <div class="background-asset-current">
                 <span class="background-asset-preview">
                   <img
                     src="${escapeHtml(
                       assetUrl(
-                        backgroundAsset.id,
-                        backgroundAsset.revision
+                        background.id,
+                        background.revision
                       )
                     )}"
                     alt="${escapeHtml(
-                      backgroundAsset.fileName ?? "关卡背景"
+                      background.fileName ?? "关卡背景"
                     )}"
                   />
                 </span>
                 <span class="background-asset-copy">
                   <strong>${escapeHtml(
-                    backgroundAsset.fileName ??
-                      backgroundAsset.id
+                    background.fileName ?? background.id
                   )}</strong>
-                  <small>${escapeHtml(backgroundAsset.path)}</small>
+                  <small>${escapeHtml(background.path)}</small>
                 </span>
               </div>
             `
+            : background?.type === "tiled"
+              ? `
+                <div class="background-asset-current">
+                  <span class="background-asset-preview">
+                    <span class="background-map-fallback">TILED</span>
+                    <canvas
+                      data-current-background-map="${escapeHtml(
+                        background.id
+                      )}"
+                      aria-label="${escapeHtml(
+                        background.fileName
+                      )} 地图预览"
+                    ></canvas>
+                  </span>
+                  <span class="background-asset-copy">
+                    <strong>${escapeHtml(
+                      background.fileName ?? "Tiled 背景地图"
+                    )}</strong>
+                    <small>${escapeHtml(
+                      `${background.sourceWidth} × ${
+                        background.sourceHeight
+                      } · ${background.collisions?.length ?? 0} 个碰撞`
+                    )}</small>
+                    <small>${escapeHtml(background.mapPath)}</small>
+                  </span>
+                </div>
+              `
             : `
               <div class="background-asset-empty">
-                尚未导入背景图，当前使用背景颜色。
+                尚未导入背景素材，当前使用背景颜色。
               </div>
             `
         }
@@ -310,7 +378,20 @@ export class Inspector {
             从素材库导入背景
           </button>
           ${
-            backgroundAsset
+            background?.type === "tiled"
+              ? `
+                <button
+                  class="text-button"
+                  type="button"
+                  data-action="restore-background-aspect"
+                >
+                  恢复比例
+                </button>
+              `
+              : ""
+          }
+          ${
+            background
               ? `
                 <button
                   class="text-button"

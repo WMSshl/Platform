@@ -1003,12 +1003,39 @@ kbd {
   overflow: hidden;
 }
 
-.background-asset-preview img {
+.background-asset-preview {
+  position: relative;
+}
+
+.background-asset-preview img,
+.background-asset-preview canvas {
   display: block;
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.background-asset-preview canvas {
+  position: relative;
+  z-index: 1;
+}
+
+.background-map-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fbbf24;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.background-asset-preview:has(
+  canvas[data-preview-ready="true"]
+) .background-map-fallback {
+  display: none;
 }
 
 .background-asset-copy {
@@ -1174,6 +1201,83 @@ kbd {
 .shortcut-dialog::backdrop {
   background: rgba(2, 6, 23, 0.76);
   backdrop-filter: blur(3px);
+}
+
+.tiled-map-select-dialog {
+  width: min(680px, calc(100vw - 48px));
+  padding: 22px;
+  border: 1px solid #2a3b52;
+  border-radius: 10px;
+  background: #0d1523;
+  color: var(--text);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+.tiled-map-select-dialog::backdrop {
+  background: rgba(2, 6, 23, 0.76);
+  backdrop-filter: blur(3px);
+}
+
+.tiled-map-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+
+.tiled-map-candidate-list {
+  display: grid;
+  max-height: min(420px, 52vh);
+  gap: 7px;
+  margin-top: 9px;
+  overflow: auto;
+}
+
+.tiled-map-candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #09111c;
+  cursor: pointer;
+}
+
+.tiled-map-candidate:has(input:checked) {
+  border-color: rgba(245, 158, 11, 0.6);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.tiled-map-candidate span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.tiled-map-candidate strong {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.tiled-map-candidate small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tiled-map-select-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 16px;
 }
 
 .dialog-heading {
@@ -1480,6 +1584,14 @@ kbd {
   background: var(--violet);
 }
 
+.asset-subcategory-dot.is-static {
+  background: #34d399;
+}
+
+.asset-subcategory-dot.is-tiled {
+  background: #f59e0b;
+}
+
 .asset-scope-note {
   padding: 14px 8px 0;
   margin: auto 0 0;
@@ -1624,19 +1736,16 @@ kbd {
 
 .asset-preview img,
 .asset-preview canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   image-rendering: pixelated;
   object-fit: contain;
-}
-
-.asset-preview canvas {
-  width: auto;
-  height: 100%;
-  max-width: 100%;
-  image-rendering: pixelated;
-  object-fit: contain;
+  object-position: center;
 }
 
 .asset-extension {
@@ -1658,13 +1767,60 @@ kbd {
   padding: 9px 10px 10px;
 }
 
-.asset-card-copy strong {
+.asset-name-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+}
+
+.asset-file-name {
+  min-width: 0;
   overflow: hidden;
   color: var(--text-soft);
   font-size: 10px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.asset-file-extension {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.asset-rename-input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 1px 3px;
+  border: 1px solid rgba(56, 189, 248, 0.72);
+  border-radius: 3px;
+  outline: none;
+  background: #07111d;
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+}
+
+.asset-rename-input:focus {
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.12);
+}
+
+.asset-rename-input.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(251, 113, 133, 0.12);
+}
+
+.asset-card.is-renaming,
+.asset-card.is-saving {
+  border-color: rgba(56, 189, 248, 0.72);
+}
+
+.asset-card.is-saving {
+  opacity: 0.76;
 }
 
 .asset-card-copy small {
@@ -2268,12 +2424,20 @@ kbd {
   overflow: hidden;
 }
 
-.background-choice-preview img {
+.background-choice-preview img,
+.background-choice-tiled-canvas {
   display: block;
   width: 100%;
   height: 100%;
   image-rendering: pixelated;
+}
+
+.background-choice-preview img {
   object-fit: cover;
+}
+
+.background-choice-tiled-canvas {
+  object-fit: contain;
 }
 
 .background-choice-badge {

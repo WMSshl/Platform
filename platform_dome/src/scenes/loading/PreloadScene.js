@@ -13,6 +13,10 @@ import {
 } from "../../config/playerAnimations.js";
 import { PlaceholderTextureService } from "../../services/assets/PlaceholderTextureService.js";
 import {
+  getLevelBackgroundMap,
+  getLevelBackgroundMapKey,
+  getLevelBackgroundMapTilesetKey,
+  getLevelBackgroundMapUrl,
   getLevelBackgroundAsset,
   getLevelBackgroundTextureKey,
   getLevelBackgroundUrl
@@ -92,8 +96,55 @@ export class PreloadScene extends BaseScene {
 
   loadLevelBackgrounds(repository) {
     let pending = 0;
+    const requestedMapKeys = new Set();
+    const requestedTextureKeys = new Set();
     repository.getLevelIds().forEach((levelId) => {
       const level = repository.getLevel(levelId);
+      const backgroundMap = getLevelBackgroundMap(level);
+      if (backgroundMap) {
+        const mapKey = getLevelBackgroundMapKey(
+          levelId,
+          backgroundMap
+        );
+        if (
+          !this.cache.tilemap.exists(mapKey) &&
+          !requestedMapKeys.has(mapKey)
+        ) {
+          this.load.tilemapTiledJSON(
+            mapKey,
+            getLevelBackgroundMapUrl(
+              backgroundMap.mapPath,
+              backgroundMap.revision
+            )
+          );
+          requestedMapKeys.add(mapKey);
+          pending += 1;
+        }
+        for (const tileset of backgroundMap.tilesets) {
+          const textureKey =
+            getLevelBackgroundMapTilesetKey(
+              levelId,
+              backgroundMap,
+              tileset
+            );
+          if (
+            this.textures.exists(textureKey) ||
+            requestedTextureKeys.has(textureKey)
+          ) {
+            continue;
+          }
+          this.load.image(
+            textureKey,
+            getLevelBackgroundMapUrl(
+              tileset.imagePath,
+              backgroundMap.revision
+            )
+          );
+          requestedTextureKeys.add(textureKey);
+          pending += 1;
+        }
+        return;
+      }
       const asset = getLevelBackgroundAsset(level);
       if (!asset) {
         return;

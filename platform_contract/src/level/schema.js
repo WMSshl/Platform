@@ -1,4 +1,4 @@
-export const CURRENT_LEVEL_SCHEMA_VERSION = 1;
+export const CURRENT_LEVEL_SCHEMA_VERSION = 3;
 
 export const LEVEL_SECTIONS = Object.freeze([
   {

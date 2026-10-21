@@ -18,6 +18,7 @@ import {
   resizeObject,
   resizeWorldBounds
 } from "../model/ObjectTransform.js";
+import { TiledBackgroundView } from "./TiledBackgroundView.js";
 
 const Phaser = globalThis.Phaser;
 export const MAP_SCENE_KEY = "MapScene";
@@ -66,6 +67,7 @@ export class MapScene extends Phaser.Scene {
     this.resizeState = null;
     this.drawState = null;
     this.backgroundImage = null;
+    this.tiledBackground = null;
     this.backgroundTextureRequests = new Set();
     this.backgroundTextureErrors = new Set();
     this.selectionBounds = null;
@@ -87,6 +89,10 @@ export class MapScene extends Phaser.Scene {
     this.input.mouse?.disableContextMenu();
 
     this.backgroundGraphics = this.add.graphics().setDepth(0);
+    this.tiledBackground = new TiledBackgroundView(
+      this,
+      () => this.render()
+    );
     this.gridGraphics = this.add.graphics().setDepth(1);
     this.objectGraphics = this.add.graphics().setDepth(10);
     this.overlayGraphics = this.add.graphics().setDepth(30);
@@ -118,10 +124,11 @@ export class MapScene extends Phaser.Scene {
     this.input.setDefaultCursor("default");
   }
 
-  update() {
+  update(time = this.time.now) {
     if (!this.sceneReady) {
       return;
     }
+    this.tiledBackground?.update(time);
     this.updateCameraBounds();
     const camera = this.cameras.main;
     const signature = [
@@ -188,6 +195,10 @@ export class MapScene extends Phaser.Scene {
     this.labelLayer.removeAll(true);
     this.hitTargets = [];
 
+    this.tiledBackground.drawCollisions(
+      this.objectGraphics,
+      this.document.world
+    );
     this.document.solids.forEach((solid) =>
       this.drawSolid(solid)
     );
@@ -224,7 +235,21 @@ export class MapScene extends Phaser.Scene {
       world.height
     );
 
-    const asset = world.backgroundAsset;
+    const backgroundMap =
+      world.background?.type === "tiled"
+        ? world.background
+        : null;
+    if (backgroundMap) {
+      this.backgroundImage?.setVisible(false);
+      this.tiledBackground.draw(backgroundMap, world);
+      return;
+    }
+    this.tiledBackground.hide();
+
+    const asset =
+      world.background?.type === "image"
+        ? world.background
+        : null;
     if (!asset?.id) {
       this.backgroundImage?.setVisible(false);
       return;

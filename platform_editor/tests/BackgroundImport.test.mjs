@@ -32,6 +32,7 @@ test("background import copies the selected library asset into the game", async 
   });
 
   assert.deepEqual(background, {
+    type: "image",
     id: "map/backgrounds/庭院背景.png",
     path: "assets/map/backgrounds/庭院背景.png",
     fileName: "庭院背景.png",

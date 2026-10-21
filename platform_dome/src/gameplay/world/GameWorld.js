@@ -4,6 +4,7 @@ import { createEmptyRunState } from "../../state/initialState.js";
 import { CombatSystem } from "../combat/CombatSystem.js";
 import { Enemy } from "../entities/Enemy.js";
 import { Pickup } from "../entities/Pickup.js";
+import { BackgroundWorld } from "./BackgroundWorld.js";
 import { Player } from "../entities/Player.js";
 import {
   installGameplaySystems,
@@ -11,8 +12,6 @@ import {
 } from "../systems/GameplaySystemRegistry.js";
 import {
   getActorInstanceScale,
-  getLevelBackgroundAsset,
-  getLevelBackgroundTextureKey,
   getSolidTerrainType
 } from "../../data/levels/LevelPresentation.js";
 
@@ -71,7 +70,15 @@ export class GameWorld {
       level.world.height
     );
 
-    this.backgroundImage = this.createBackground();
+    this.backgroundWorld = new BackgroundWorld(
+      this.scene,
+      this.level
+    );
+    const backgroundDisplayObjects =
+      this.backgroundWorld.createDisplayObjects();
+    this.backgroundImage = backgroundDisplayObjects.image;
+    this.backgroundMapLayers =
+      backgroundDisplayObjects.tileLayers;
     this.solidObjects = this.createSolids();
     installGameplaySystems(this);
 
@@ -95,34 +102,22 @@ export class GameWorld {
     this.runState.world.collectedItemIds ??= [];
   }
 
-  createBackground() {
-    const asset = getLevelBackgroundAsset(this.level);
-    if (!asset) {
-      return null;
-    }
-    const textureKey = getLevelBackgroundTextureKey(
-      this.level.id,
-      asset
-    );
-    if (!this.scene.textures.exists(textureKey)) {
-      console.warn(`关卡背景纹理未加载：${asset.path}`);
-      return null;
-    }
-
-    return this.scene.add
-      .image(0, 0, textureKey)
-      .setOrigin(0)
-      .setDisplaySize(
-        this.level.world.width,
-        this.level.world.height
-      )
-      .setDepth(DepthLayers.BACKGROUND);
-  }
-
   createSolids() {
     this.groundObjects = [];
     this.platformObjects = [];
-    return this.level.solids.map((solid) => {
+    const backgroundCollisions =
+      this.backgroundWorld.getCollisionRects();
+    const solids = [
+      ...this.level.solids,
+      ...backgroundCollisions.map((collision) => ({
+        ...collision,
+        color:
+          collision.terrainType === "platform"
+            ? "#38bdf8"
+            : "#475569"
+      }))
+    ];
+    return solids.map((solid) => {
       const rectangle = this.scene.add
         .rectangle(
           solid.x,
@@ -414,6 +409,7 @@ export class GameWorld {
     if (this.player.isDead || this.transitioning) {
       return;
     }
+    this.backgroundWorld.update(now);
 
     if (this.input.justDown("guard")) {
       this.player.tryStartGuard(now);

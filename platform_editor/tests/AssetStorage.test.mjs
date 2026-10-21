@@ -9,6 +9,7 @@ import {
   listAssets,
   normalizeAssetFileName,
   parsePngDimensions,
+  renameAsset,
   saveAsset,
   updateAssetMetadata,
   validateAssetContentType
@@ -109,6 +110,83 @@ test("asset upload validation rejects unsupported files and mismatched MIME type
     (error) =>
       error instanceof AssetStorageError &&
       error.statusCode === 400
+  );
+});
+
+test("static texture category accepts PNG files only", async (t) => {
+  const assetRoot = await mkdtemp(
+    join(tmpdir(), "platform-editor-static-textures-")
+  );
+  t.after(() => rm(assetRoot, { recursive: true, force: true }));
+
+  const texture = await saveAsset(assetRoot, {
+    categoryId: "static",
+    fileName: "石砖.png",
+    contentType: "image/png",
+    content: pngHeader(64, 32)
+  });
+  assert.equal(
+    texture.relativePath,
+    "map/static-textures/石砖.png"
+  );
+  assert.equal(
+    (await listAssets(assetRoot, "static"))[0].fileName,
+    "石砖.png"
+  );
+
+  await assert.rejects(
+    () =>
+      saveAsset(assetRoot, {
+        categoryId: "static",
+        fileName: "石砖.jpg",
+        contentType: "image/jpeg",
+        content: Buffer.from("jpeg-image")
+      }),
+    /静态贴图分类仅支持 PNG 图片/
+  );
+});
+
+test("asset rename preserves the suffix and animation metadata", async (t) => {
+  const assetRoot = await mkdtemp(
+    join(tmpdir(), "platform-editor-rename-")
+  );
+  t.after(() => rm(assetRoot, { recursive: true, force: true }));
+
+  await saveAsset(assetRoot, {
+    categoryId: "entity",
+    fileName: "walk.png",
+    contentType: "image/png",
+    content: pngHeader(128, 32)
+  });
+  await updateAssetMetadata(assetRoot, {
+    categoryId: "entity",
+    fileName: "walk.png",
+    frameRate: 12
+  });
+
+  const renamed = await renameAsset(assetRoot, {
+    categoryId: "entity",
+    fileName: "walk.png",
+    newFileName: "奔跑.png"
+  });
+  assert.deepEqual(renamed, {
+    categoryId: "entity",
+    previousFileName: "walk.png",
+    fileName: "奔跑.png"
+  });
+
+  const [asset] = await listAssets(assetRoot, "entity");
+  assert.equal(asset.fileName, "奔跑.png");
+  assert.equal(asset.frameRate, 12);
+
+  await assert.rejects(
+    () =>
+      renameAsset(assetRoot, {
+        categoryId: "entity",
+        fileName: "奔跑.png",
+        newFileName: "奔跑.gif"
+      }),
+    /重命名不能修改文件后缀/
   );
 });
 

@@ -11,9 +11,21 @@ function positiveNumber(value, fallback) {
  * 编辑器写入的视觉字段统一在这里解释，GameWorld 和 PreloadScene
  * 不直接猜测 JSON 字段，后续扩展更多表现属性时只需修改本模块。
  */
+export function getLevelBackground(level) {
+  const background = level?.world?.background;
+  return background &&
+    ["image", "tiled"].includes(background.type)
+    ? background
+    : null;
+}
+
 export function getLevelBackgroundAsset(level) {
-  const asset = level?.world?.backgroundAsset;
-  if (!asset || typeof asset.path !== "string" || !asset.path) {
+  const asset = getLevelBackground(level);
+  if (
+    asset?.type !== "image" ||
+    typeof asset.path !== "string" ||
+    !asset.path
+  ) {
     return null;
   }
   return {
@@ -39,6 +51,46 @@ export function getLevelBackgroundUrl(asset) {
     ? `?v=${encodeURIComponent(asset.revision)}`
     : "";
   return `${encodedPath}${revision}`;
+}
+
+export function getLevelBackgroundMap(level) {
+  const backgroundMap = getLevelBackground(level);
+  if (
+    backgroundMap?.type !== "tiled" ||
+    typeof backgroundMap.mapPath !== "string" ||
+    !backgroundMap.mapPath ||
+    !Array.isArray(backgroundMap.tilesets)
+  ) {
+    return null;
+  }
+  return backgroundMap;
+}
+
+export function getLevelBackgroundMapKey(levelId, backgroundMap) {
+  return `level-tilemap:${levelId}:${backgroundMap.id}:${backgroundMap.revision}`;
+}
+
+export function getLevelBackgroundMapTilesetKey(
+  levelId,
+  backgroundMap,
+  tileset
+) {
+  return `level-tilemap-tileset:${levelId}:${backgroundMap.id}:${
+    backgroundMap.revision
+  }:${tileset.firstGid}`;
+}
+
+export function getLevelBackgroundMapUrl(path, revision = "") {
+  const encodedPath = String(path ?? "")
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const version = revision
+    ? `?v=${encodeURIComponent(revision)}`
+    : "";
+  return `${encodedPath}${version}`;
 }
 
 export function getActorInstanceScale(actorSpawn) {

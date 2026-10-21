@@ -6,7 +6,7 @@ platform_editor/    编辑器：产出符合 contract 的数据
 platform_dome/      游戏运行时：消费 contract 的数据
 依赖单向：editor → contract ← dome。禁止 editor 与 dome 互相 import。
 
-当前关卡 schema 版本：1。contract 包名固定为 `contract`，供根目录 pnpm 脚本筛选。
+当前关卡 schema 版本：3。contract 包名固定为 `contract`，供根目录 pnpm 脚本筛选。
 
 ## 跨项目改动的唯一合法顺序
 1. 改 platform_contract：新增字段必须可选 + 版本号 + 迁移函数

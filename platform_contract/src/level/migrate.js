@@ -64,7 +64,11 @@ export function migrateLevelDocument(input) {
       `不支持的关卡 schemaVersion：${sourceVersion}；当前版本为 ${CURRENT_LEVEL_SCHEMA_VERSION}`
     );
   }
-  return normalizeLevel(input);
+  const migrated = {
+    ...clone(input),
+    schemaVersion: CURRENT_LEVEL_SCHEMA_VERSION
+  };
+  return normalizeLevel(migrated);
 }
 
 export function normalizeLevel(input) {
@@ -86,6 +90,42 @@ export function normalizeLevel(input) {
       ...(input.camera ?? {})
     }
   };
+  const legacyBackgroundAsset = level.world.backgroundAsset;
+  const legacyBackgroundMap = level.world.backgroundMap;
+  if (level.world.background?.type === "tiled") {
+    const {
+      x: _legacyX,
+      y: _legacyY,
+      scaleX: _legacyScaleX,
+      scaleY: _legacyScaleY,
+      fit: _legacyFit,
+      ...backgroundMap
+    } = level.world.background;
+    level.world.background = {
+      ...backgroundMap,
+      type: "tiled"
+    };
+  } else if (!level.world.background && legacyBackgroundMap) {
+    const {
+      x: _legacyX,
+      y: _legacyY,
+      scaleX: _legacyScaleX,
+      scaleY: _legacyScaleY,
+      fit: _legacyFit,
+      ...backgroundMap
+    } = legacyBackgroundMap;
+    level.world.background = {
+      ...backgroundMap,
+      type: "tiled"
+    };
+  } else if (!level.world.background && legacyBackgroundAsset) {
+    level.world.background = {
+      ...legacyBackgroundAsset,
+      type: "image"
+    };
+  }
+  delete level.world.backgroundAsset;
+  delete level.world.backgroundMap;
 
   delete level.story;
   delete level.quest;

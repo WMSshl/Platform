@@ -6,7 +6,8 @@ export class SpriteSheetAnimator {
       frameWidth,
       frameHeight,
       frameCount,
-      frameRate = 8
+      frameRate = 8,
+      contentBounds = null
     }
   ) {
     this.canvas = canvas;
@@ -16,6 +17,15 @@ export class SpriteSheetAnimator {
     this.frameHeight = Math.max(1, Number(frameHeight) || 1);
     this.frameCount = Math.max(1, Number(frameCount) || 1);
     this.frameRate = Math.max(1, Number(frameRate) || 8);
+    this.contentBounds = contentBounds;
+    this.drawWidth = Math.max(
+      1,
+      Number(contentBounds?.width) || this.frameWidth
+    );
+    this.drawHeight = Math.max(
+      1,
+      Number(contentBounds?.height) || this.frameHeight
+    );
     this.frameIndex = 0;
     this.lastFrameAt = 0;
     this.animationFrame = null;
@@ -29,8 +39,8 @@ export class SpriteSheetAnimator {
     image.src = this.url;
     await image.decode();
     this.image = image;
-    this.canvas.width = this.frameWidth;
-    this.canvas.height = this.frameHeight;
+    this.canvas.width = this.drawWidth;
+    this.canvas.height = this.drawHeight;
     this.context.imageSmoothingEnabled = false;
     this.draw();
     return this;
@@ -92,19 +102,23 @@ export class SpriteSheetAnimator {
     this.context.clearRect(
       0,
       0,
-      this.frameWidth,
-      this.frameHeight
+      this.drawWidth,
+      this.drawHeight
     );
+    const sourceX =
+      this.frameIndex * this.frameWidth +
+      (this.contentBounds?.x ?? 0);
+    const sourceY = this.contentBounds?.y ?? 0;
     this.context.drawImage(
       this.image,
-      this.frameIndex * this.frameWidth,
+      sourceX,
+      sourceY,
+      this.drawWidth,
+      this.drawHeight,
       0,
-      this.frameWidth,
-      this.frameHeight,
       0,
-      0,
-      this.frameWidth,
-      this.frameHeight
+      this.drawWidth,
+      this.drawHeight
     );
   }
 }

@@ -1,3 +1,5 @@
+import { TiledMapThumbnail } from "./TiledMapThumbnail.js";
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -41,6 +43,7 @@ export class BackgroundPicker {
     this.assets = [];
     this.currentAssetId = "";
     this.isSelecting = false;
+    this.previewGeneration = 0;
     this.bindEvents();
   }
 
@@ -104,12 +107,19 @@ export class BackgroundPicker {
           payload.error ?? `素材接口返回 ${response.status}`
         );
       }
-      this.assets = payload.assets?.background ?? [];
+      this.assets = [
+        ...(payload.assets?.background ?? []),
+        ...(payload.assets?.tiled ?? [])
+      ];
       this.render();
       this.setStatus(
         this.assets.length > 0
-          ? `共 ${this.assets.length} 个背景素材`
-          : "素材库中还没有背景素材"
+          ? `共 ${
+              payload.assets?.background?.length ?? 0
+            } 张背景图、${
+              payload.assets?.tiled?.length ?? 0
+            } 个 Tiled 地图`
+          : "素材库中还没有背景素材或 Tiled 地图"
       );
     } catch (error) {
       this.assets = [];
@@ -121,6 +131,7 @@ export class BackgroundPicker {
   }
 
   render() {
+    this.previewGeneration += 1;
     if (this.assets.length === 0) {
       this.grid.innerHTML = "";
       this.empty.hidden = false;
@@ -130,37 +141,91 @@ export class BackgroundPicker {
     this.empty.hidden = true;
     this.grid.innerHTML = this.assets
       .map(
-        (asset) => `
+        (asset) => {
+          const isTiledMap = asset.categoryId === "tiled";
+          const isCurrent =
+            asset.relativePath === this.currentAssetId;
+          return `
           <button
             class="background-choice ${
-              asset.relativePath === this.currentAssetId
-                ? "is-current"
-                : ""
+              isCurrent ? "is-current" : ""
             }"
             type="button"
             data-background-id="${escapeHtml(asset.relativePath)}"
           >
             <span class="background-choice-preview">
-              <img src="${escapeHtml(
-                asset.url
-              )}" alt="${escapeHtml(
-                asset.fileName
-              )}" loading="lazy" />
               ${
-                asset.relativePath === this.currentAssetId
+                isTiledMap
+                  ? `
+                    <canvas
+                      class="background-choice-tiled-canvas"
+                      data-background-tiled-preview="${escapeHtml(
+                        asset.id
+                      )}"
+                      aria-label="${escapeHtml(
+                        asset.fileName
+                      )} 地图预览"
+                    ></canvas>
+                  `
+                  : `
+                    <img src="${escapeHtml(
+                      asset.url
+                    )}" alt="${escapeHtml(
+                      asset.fileName
+                    )}" loading="lazy" />
+                  `
+              }
+              ${
+                isCurrent
                   ? '<span class="background-choice-badge">当前</span>'
                   : ""
               }
             </span>
             <span class="background-choice-copy">
               <strong>${escapeHtml(asset.fileName)}</strong>
-              <small>${formatBytes(asset.size)}</small>
+              <small>${
+                isTiledMap
+                  ? `${asset.tileLayerCount ?? 0} 图层 · ${
+                      asset.collisionCount ?? 0
+                    } 碰撞`
+                  : formatBytes(asset.size)
+              }</small>
             </span>
-            <span class="background-choice-action">使用此背景</span>
+            <span class="background-choice-action">${
+              isTiledMap ? "作为背景地图导入" : "使用此背景"
+            }</span>
           </button>
-        `
+        `;
+        }
       )
       .join("");
+    this.startTiledPreviews();
+  }
+
+  startTiledPreviews() {
+    const generation = this.previewGeneration;
+    for (const canvas of this.grid.querySelectorAll(
+      "[data-background-tiled-preview]"
+    )) {
+      const asset = this.assets.find(
+        (item) =>
+          item.categoryId === "tiled" &&
+          item.id === canvas.dataset.backgroundTiledPreview
+      );
+      if (!asset) {
+        continue;
+      }
+      const thumbnail = new TiledMapThumbnail(canvas, asset);
+      thumbnail.start().catch((error) => {
+        if (
+          generation === this.previewGeneration &&
+          canvas.isConnected
+        ) {
+          canvas.dataset.previewError = "true";
+        }
+        console.warn("背景 Tiled 地图预览加载失败", error);
+      });
+    }
   }
 
   async select(asset) {

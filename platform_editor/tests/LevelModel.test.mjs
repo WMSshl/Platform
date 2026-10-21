@@ -11,7 +11,9 @@ import {
   duplicateSelection,
   insertPlacedObject,
   normalizeLevel,
-  removeSelection
+  removeSelection,
+  restoreLevelBackgroundAspect,
+  setLevelBackground
 } from "../src/model/LevelModel.js";
 import { validateLevel } from "../src/model/Validation.js";
 
@@ -218,6 +220,35 @@ test("all special object types share the mechanisms collection", () => {
   );
   assert.equal(draft.gates, undefined);
   assert.equal(draft.exits, undefined);
+});
+
+test("importing a background does not change the current world size", () => {
+  const draft = createEmptyLevel("level-background");
+  draft.world.width = 1800;
+  draft.world.height = 900;
+  setLevelBackground(draft, {
+    type: "tiled",
+    id: "map/tiled/source",
+    sourceWidth: 320,
+    sourceHeight: 180
+  });
+  assert.equal(draft.world.width, 1800);
+  assert.equal(draft.world.height, 900);
+  assert.equal(draft.world.background.type, "tiled");
+});
+
+test("restoring background aspect keeps width and adjusts world height", () => {
+  const draft = createEmptyLevel("level-aspect");
+  draft.world.width = 1200;
+  draft.world.height = 500;
+  draft.world.background = {
+    type: "tiled",
+    sourceWidth: 960,
+    sourceHeight: 640
+  };
+  assert.equal(restoreLevelBackgroundAspect(draft), true);
+  assert.equal(draft.world.width, 1200);
+  assert.equal(draft.world.height, 800);
 });
 
 test("validation rejects two entrances binding the same exit", () => {

@@ -45,6 +45,17 @@ for (const directory of ["src", "tools", "tests"]) {
     if (result.status !== 0) {
       errors.push(`语法错误：${file}\n${result.stderr}`);
     }
+    const source = await readFile(file, "utf8");
+    const imports = [
+      ...source.matchAll(/from\s+["']([^"']+)["']/g)
+    ].map((match) => match[1]);
+    if (
+      imports.some((specifier) =>
+        /platform_dome/.test(specifier)
+      )
+    ) {
+      errors.push(`editor 不得直接引用 dome：${file}`);
+    }
   }
 }
 

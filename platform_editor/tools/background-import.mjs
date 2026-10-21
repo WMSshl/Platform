@@ -72,6 +72,7 @@ export async function importBackgroundToGame({
   );
 
   return {
+    type: "image",
     id: background.id,
     path: `assets/map/backgrounds/${background.fileName}`,
     fileName: background.fileName,

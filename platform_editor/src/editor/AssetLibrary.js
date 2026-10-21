@@ -1,17 +1,53 @@
 import { SpriteSheetAnimator } from "./SpriteSheetAnimator.js";
+import {
+  getOpaqueContentBounds,
+  ImageThumbnail,
+  loadAssetImage
+} from "./AssetThumbnail.js";
+import { TiledMapImportController } from "./TiledMapImportController.js";
+import { TiledMapThumbnail } from "./TiledMapThumbnail.js";
 
 const DEFAULT_MAX_FILE_BYTES = 20 * 1024 * 1024;
-const SUPPORTED_EXTENSION = /\.(gif|jpe?g|png|svg|webp)$/i;
+const ALL_IMAGE_EXTENSIONS = [
+  ".gif",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".svg",
+  ".webp"
+];
+const TILED_EXTENSIONS = [
+  ".json",
+  ".tmj",
+  ".tsx",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif"
+];
 const MIN_VIEWER_SCALE = 0.2;
 const MAX_VIEWER_SCALE = 8;
 const CATEGORY_META = {
   background: {
     parentLabel: "地图",
-    label: "背景"
+    label: "背景",
+    allowedExtensions: ALL_IMAGE_EXTENSIONS
   },
   entity: {
     parentLabel: "地图",
-    label: "动画"
+    label: "动画",
+    allowedExtensions: ALL_IMAGE_EXTENSIONS
+  },
+  static: {
+    parentLabel: "地图",
+    label: "静态贴图",
+    allowedExtensions: [".png"]
+  },
+  tiled: {
+    parentLabel: "地图",
+    label: "Tiled 地图",
+    allowedExtensions: TILED_EXTENSIONS
   }
 };
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -45,6 +81,53 @@ function formatDate(value) {
   return Number.isNaN(date.getTime())
     ? ""
     : dateFormatter.format(date);
+}
+
+function splitAssetFileName(fileName) {
+  const dotIndex = fileName.lastIndexOf(".");
+  if (dotIndex <= 0) {
+    return { stem: fileName, extension: "" };
+  }
+  return {
+    stem: fileName.slice(0, dotIndex),
+    extension: fileName.slice(dotIndex)
+  };
+}
+
+function formatExtensionLabel(extensions) {
+  return extensions
+    .map((extension) => extension.slice(1).toUpperCase())
+    .join("、");
+}
+
+function usesNativeImagePreview(asset) {
+  return (
+    asset.mimeType === "image/gif" ||
+    asset.mimeType === "image/svg+xml"
+  );
+}
+
+function tiledMapPreviewDataUrl(asset) {
+  const width = Math.max(1, Number(asset.sourceWidth) || 1);
+  const height = Math.max(1, Number(asset.sourceHeight) || 1);
+  const details = `${width} × ${height} · ${asset.tileLayerCount ?? 0} 图层 · ${asset.collisionCount ?? 0} 碰撞`;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540">
+      <defs>
+        <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+          <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#334155" stroke-width="1"/>
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="#07111d"/>
+      <rect width="100%" height="100%" fill="url(#grid)" opacity="0.65"/>
+      <rect x="120" y="150" width="720" height="240" rx="18" fill="#0f172a" stroke="#f59e0b" stroke-width="4"/>
+      <text x="480" y="270" text-anchor="middle" fill="#fbbf24" font-family="Consolas, monospace" font-size="52" letter-spacing="8">TILED JSON</text>
+      <text x="480" y="325" text-anchor="middle" fill="#cbd5e1" font-family="Microsoft YaHei, sans-serif" font-size="24">${escapeHtml(details)}</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    svg
+  )}`;
 }
 
 export class AssetLibrary {
@@ -85,6 +168,9 @@ export class AssetLibrary {
       "asset-empty-description"
     );
     this.status = document.getElementById("asset-status");
+    this.supportedFormats = document.getElementById(
+      "asset-supported-formats"
+    );
     this.dropZone = document.getElementById("asset-drop-zone");
     this.dropHint = document.getElementById("asset-drop-hint");
     this.contextMenu = document.getElementById(
@@ -129,6 +215,9 @@ export class AssetLibrary {
     this.frameRateAction = this.contextMenu.querySelector(
       '[data-asset-action="frame-rate"]'
     );
+    this.renameAction = this.contextMenu.querySelector(
+      '[data-asset-action="rename"]'
+    );
     this.contextFrameRate = document.getElementById(
       "asset-context-frame-rate"
     );
@@ -166,6 +255,7 @@ export class AssetLibrary {
     this.isUploading = false;
     this.isLoading = false;
     this.isDeleting = false;
+    this.isRenaming = false;
     this.apiAvailable = true;
     this.dragDepth = 0;
     this.contextAsset = null;
@@ -179,10 +269,28 @@ export class AssetLibrary {
     this.panPointerId = null;
     this.panStart = null;
     this.animators = new Set();
+    this.previewGeneration = 0;
     this.viewerSpriteAnimator = null;
     this.frameRatePreviewAnimator = null;
     this.frameRateAsset = null;
     this.pendingFrameRate = 8;
+    this.renameEditor = null;
+    this.tiledImporter = new TiledMapImportController({
+      onNotify: (message, isError) =>
+        this.showNotification(message, isError),
+      onStatus: (message, isError) =>
+        this.setStatus(message, isError),
+      onBusyChange: (busy) => {
+        this.isUploading = busy;
+        this.setBusy();
+      },
+      onImported: async () => {
+        this.activeCategory = "tiled";
+        await this.refresh();
+      },
+      getMaxFileBytes: () => this.maxFileBytes
+    });
+    this.syncUploadConstraints();
     this.bindEvents();
   }
 
@@ -195,11 +303,13 @@ export class AssetLibrary {
     });
     this.dialog.addEventListener("close", () => {
       this.fileInput.value = "";
+      this.tiledImporter.cancel();
       this.dragDepth = 0;
       this.dropZone.classList.remove("is-dragging");
       this.closeContextMenu();
       this.closeViewer();
       this.closeFrameRatePanel();
+      this.cancelRename({ rerender: false });
       this.stopPreviewAnimators();
     });
     this.dialog.addEventListener("pointerdown", (event) => {
@@ -248,7 +358,6 @@ export class AssetLibrary {
       this.fileInput.value = "";
       this.uploadFiles(files);
     });
-
     this.dialog.addEventListener("dragover", (event) => {
       event.preventDefault();
     });
@@ -291,7 +400,9 @@ export class AssetLibrary {
       }
       const asset = (this.assets[this.activeCategory] ?? []).find(
         (candidate) =>
-          candidate.fileName === card.dataset.assetFile
+          (candidate.categoryId === "tiled"
+            ? candidate.id
+            : candidate.fileName) === card.dataset.assetFile
       );
       if (!asset) {
         return;
@@ -311,9 +422,12 @@ export class AssetLibrary {
         return;
       }
       const asset = this.contextAsset;
+      const card = this.contextTarget;
       this.closeContextMenu();
       if (action === "view") {
         this.openViewer(asset);
+      } else if (action === "rename") {
+        this.beginRename(asset, card);
       } else if (action === "delete") {
         this.deleteAsset(asset);
       } else if (action === "frame-rate") {
@@ -454,20 +568,27 @@ export class AssetLibrary {
     if (!CATEGORY_META[categoryId]) {
       return;
     }
+    this.cancelRename({ rerender: false });
     this.closeContextMenu();
     this.activeCategory = categoryId;
+    this.syncUploadConstraints();
     this.render();
     const count = this.assets[categoryId]?.length ?? 0;
     this.setStatus(
       count > 0
         ? `当前分类有 ${count} 个素材。`
-        : "当前分类还没有素材，可以拖入图片或点击上传。"
+        : categoryId === "tiled"
+          ? "当前分类还没有素材，可导入包含 JSON/TMJ、TSX 与图片的文件夹。"
+          : "当前分类还没有素材，可以拖入图片或点击上传。"
     );
   }
 
   setBusy() {
     const busy =
-      this.isLoading || this.isUploading || this.isDeleting;
+      this.isLoading ||
+      this.isUploading ||
+      this.isDeleting ||
+      this.isRenaming;
     this.dialog.setAttribute("aria-busy", String(busy));
     this.refreshButton.disabled = busy;
     this.uploadButton.disabled =
@@ -475,6 +596,35 @@ export class AssetLibrary {
     this.uploadButton.textContent = this.isUploading
       ? "正在上传…"
       : "上传素材";
+    this.tiledImporter.setBusy(this.isUploading);
+    this.tiledImporter.setAvailability(this.apiAvailable);
+  }
+
+  getActiveCategoryMeta() {
+    return (
+      this.categoryMeta[this.activeCategory] ??
+      CATEGORY_META[this.activeCategory]
+    );
+  }
+
+  syncUploadConstraints() {
+    const meta = this.getActiveCategoryMeta();
+    const extensions =
+      meta?.allowedExtensions ?? ALL_IMAGE_EXTENSIONS;
+    const isTiledMap = this.activeCategory === "tiled";
+    this.uploadButton.hidden = isTiledMap;
+    this.tiledImporter.setVisible(isTiledMap);
+    this.fileInput.accept = extensions.join(",");
+    if (this.supportedFormats) {
+      this.supportedFormats.textContent =
+        this.activeCategory === "tiled"
+          ? `文件夹导入支持 JSON/TMJ、TSX 与图片 · 单个不超过 ${formatBytes(
+              this.maxFileBytes
+            )}`
+          : `支持 ${formatExtensionLabel(extensions)} · 单个不超过 ${formatBytes(
+              this.maxFileBytes
+            )}`;
+    }
   }
 
   setStatus(message, isError = false) {
@@ -490,6 +640,7 @@ export class AssetLibrary {
     const supportsFrameRate =
       asset.categoryId === "entity" && asset.isSpriteSheet;
     this.frameRateAction.hidden = !supportsFrameRate;
+    this.renameAction.hidden = asset.categoryId === "tiled";
     this.contextFrameRate.textContent =
       `${asset.frameRate ?? 8} FPS · ${asset.frameCount ?? 1} 帧`;
     this.contextMenu.hidden = false;
@@ -531,6 +682,214 @@ export class AssetLibrary {
     this.contextTarget = null;
     this.contextAsset = null;
     this.contextMenu.hidden = true;
+  }
+
+  beginRename(asset, card) {
+    if (
+      !asset ||
+      !card ||
+      !this.apiAvailable ||
+      this.isLoading ||
+      this.isUploading ||
+      this.isDeleting ||
+      this.isRenaming
+    ) {
+      return;
+    }
+    this.cancelRename({ rerender: false });
+
+    const nameRow = card.querySelector(".asset-name-row");
+    if (!nameRow) {
+      return;
+    }
+    const parts = splitAssetFileName(asset.fileName);
+    const input = document.createElement("input");
+    input.className = "asset-rename-input";
+    input.type = "text";
+    input.value = parts.stem;
+    input.maxLength = 100;
+    input.spellcheck = false;
+    input.autocomplete = "off";
+    input.setAttribute(
+      "aria-label",
+      `重命名 ${asset.fileName}，文件后缀不可修改`
+    );
+    const extension = document.createElement("span");
+    extension.className = "asset-file-extension";
+    extension.textContent = parts.extension;
+    nameRow.replaceChildren(input, extension);
+
+    const editor = {
+      asset,
+      card,
+      input,
+      extension: parts.extension,
+      originalFileName: asset.fileName,
+      saving: false
+    };
+    this.renameEditor = editor;
+    card.classList.add("is-renaming");
+    this.setStatus(
+      `正在重命名 ${asset.fileName} · Enter 保存 · Esc 取消`
+    );
+
+    input.addEventListener("keydown", (event) => {
+      if (event.isComposing || event.keyCode === 229) {
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.commitRename({ keepEditingOnInvalid: true });
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.cancelRename();
+      }
+    });
+    input.addEventListener("input", () => {
+      input.classList.remove("is-invalid");
+      this.setStatus(
+        `正在重命名 ${asset.fileName} · Enter 保存 · Esc 取消`
+      );
+    });
+    input.addEventListener("blur", () => {
+      if (this.renameEditor === editor && !editor.saving) {
+        this.commitRename();
+      }
+    });
+
+    requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  }
+
+  cancelRename({ rerender = true } = {}) {
+    if (!this.renameEditor) {
+      return;
+    }
+    this.renameEditor = null;
+    if (rerender) {
+      this.render();
+    }
+  }
+
+  showRenameError(message, { keepEditing = false } = {}) {
+    this.setStatus(`重命名失败：${message}`, true);
+    this.showNotification(`重命名失败：${message}`, true);
+    const editor = this.renameEditor;
+    if (!editor) {
+      return;
+    }
+    editor.input.classList.add("is-invalid");
+    if (keepEditing) {
+      requestAnimationFrame(() => {
+        editor.input.focus();
+        editor.input.select();
+      });
+    } else {
+      this.cancelRename();
+    }
+  }
+
+  async commitRename({ keepEditingOnInvalid = false } = {}) {
+    const editor = this.renameEditor;
+    if (!editor || editor.saving) {
+      return;
+    }
+
+    const stem = editor.input.value
+      .trim()
+      .replace(/\s+/g, " ");
+    if (!stem) {
+      this.showRenameError("名称不能为空", {
+        keepEditing: keepEditingOnInvalid
+      });
+      return;
+    }
+    if (
+      /[<>:"/\\|?*\u0000-\u001f]/.test(stem) ||
+      stem.startsWith(".") ||
+      stem.endsWith(".")
+    ) {
+      this.showRenameError(
+        "名称不能包含路径字符，也不能以句点开头或结尾",
+        { keepEditing: keepEditingOnInvalid }
+      );
+      return;
+    }
+
+    const nextFileName = `${stem}${editor.extension}`;
+    if (nextFileName === editor.originalFileName) {
+      this.cancelRename();
+      this.setStatus(`素材名称未改变：${editor.originalFileName}`);
+      return;
+    }
+
+    editor.saving = true;
+    this.isRenaming = true;
+    editor.input.disabled = true;
+    editor.card.classList.add("is-saving");
+    this.setBusy();
+    this.setStatus(`正在保存名称：${nextFileName}`);
+
+    const isTiledMap = editor.asset.categoryId === "tiled";
+    const query = new URLSearchParams({
+      category: editor.asset.categoryId,
+      filename: isTiledMap
+        ? editor.asset.id
+        : editor.originalFileName
+    });
+    let renamed = false;
+    try {
+      const response = await fetch(
+        `/api/assets?${query.toString()}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            action: "rename",
+            newFileName: isTiledMap ? stem : nextFileName,
+            ...(isTiledMap ? { assetId: editor.asset.id } : {})
+          })
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? `重命名失败（${response.status}）`
+        );
+      }
+      renamed = true;
+    } catch (error) {
+      if (this.renameEditor === editor) {
+        editor.saving = false;
+        editor.input.disabled = false;
+        editor.card.classList.remove("is-saving");
+        this.setStatus(`重命名失败：${error.message}`, true);
+        this.showNotification(
+          `重命名失败：${error.message}`,
+          true
+        );
+        editor.input.classList.add("is-invalid");
+      }
+    } finally {
+      this.isRenaming = false;
+      this.setBusy();
+    }
+
+    if (renamed) {
+      const previousFileName = editor.originalFileName;
+      this.renameEditor = null;
+      await this.refresh();
+      this.setStatus(
+        `已将 ${previousFileName} 重命名为 ${nextFileName}`
+      );
+      this.showNotification("素材名称已修改");
+    }
   }
 
   openFrameRatePanel(asset) {
@@ -614,7 +973,10 @@ export class AssetLibrary {
     const frameRate = this.pendingFrameRate;
     const query = new URLSearchParams({
       category: asset.categoryId,
-      filename: asset.fileName
+      filename:
+        asset.categoryId === "tiled"
+          ? asset.id
+          : asset.fileName
     });
     this.confirmFrameRateButton.disabled = true;
     this.confirmFrameRateButton.textContent = "正在保存…";
@@ -662,6 +1024,22 @@ export class AssetLibrary {
     this.viewerAsset = asset;
     this.viewerOpen = true;
     this.viewerName.textContent = asset.fileName;
+    if (asset.categoryId === "tiled") {
+      this.viewerMeta.textContent =
+        `Tiled JSON · ${asset.sourceWidth} × ${asset.sourceHeight} · ` +
+        `${asset.tileWidth} × ${asset.tileHeight} 瓦片 · ` +
+        `${asset.collisionCount ?? 0} 个碰撞 · 滚轮缩放 · 拖动平移 · 双击复位`;
+      this.viewerImage.hidden = false;
+      this.viewerSprite.hidden = true;
+      this.viewerImage.src = tiledMapPreviewDataUrl(asset);
+      this.viewerImage.alt = asset.fileName;
+      this.viewer.hidden = false;
+      this.resetViewer();
+      requestAnimationFrame(() =>
+        this.closeViewerButton.focus({ preventScroll: true })
+      );
+      return;
+    }
     const animationDetail = asset.isSpriteSheet
       ? ` · ${asset.frameCount} 帧 · ${asset.frameRate} FPS`
       : "";
@@ -771,6 +1149,7 @@ export class AssetLibrary {
   }
 
   stopPreviewAnimators() {
+    this.previewGeneration += 1;
     for (const animator of this.animators) {
       animator.stop();
     }
@@ -779,7 +1158,38 @@ export class AssetLibrary {
 
   startPreviewAnimators() {
     this.stopPreviewAnimators();
+    const generation = this.previewGeneration;
     const assets = this.assets[this.activeCategory] ?? [];
+    for (const canvas of this.grid.querySelectorAll(
+      "[data-image-preview]"
+    )) {
+      const asset = assets.find(
+        (item) =>
+          item.fileName === canvas.dataset.imagePreview
+      );
+      if (!asset) {
+        continue;
+      }
+      const thumbnail = new ImageThumbnail(canvas, asset);
+      thumbnail.start().catch((error) => {
+        console.warn("素材缩略图加载失败", error);
+      });
+    }
+    for (const canvas of this.grid.querySelectorAll(
+      "[data-tiled-preview]"
+    )) {
+      const asset = assets.find(
+        (item) => item.id === canvas.dataset.tiledPreview
+      );
+      if (!asset) {
+        continue;
+      }
+      const thumbnail = new TiledMapThumbnail(canvas, asset);
+      thumbnail.start().catch((error) => {
+        canvas.dataset.previewError = "true";
+        console.warn("Tiled 地图缩略图加载失败", error);
+      });
+    }
     for (const canvas of this.grid.querySelectorAll(
       "[data-sprite-preview]"
     )) {
@@ -790,12 +1200,29 @@ export class AssetLibrary {
       if (!asset?.isSpriteSheet) {
         continue;
       }
-      const animator = new SpriteSheetAnimator(canvas, asset);
-      animator.assetFileName = asset.fileName;
-      this.animators.add(animator);
-      animator.start().catch((error) => {
-        console.warn("动画素材预览加载失败", error);
-      });
+      loadAssetImage(asset.url)
+        .then((image) => {
+          if (
+            generation !== this.previewGeneration ||
+            !canvas.isConnected
+          ) {
+            return null;
+          }
+          const contentBounds = getOpaqueContentBounds(
+            image,
+            asset
+          );
+          const animator = new SpriteSheetAnimator(canvas, {
+            ...asset,
+            contentBounds
+          });
+          animator.assetFileName = asset.fileName;
+          this.animators.add(animator);
+          return animator.start();
+        })
+        .catch((error) => {
+          console.warn("动画素材预览加载失败", error);
+        });
     }
   }
 
@@ -823,9 +1250,16 @@ export class AssetLibrary {
       this.categoryMeta[this.activeCategory] ??
       CATEGORY_META[this.activeCategory];
     const assets = this.assets[this.activeCategory] ?? [];
+    this.syncUploadConstraints();
     this.renderCategoryButtons();
     this.breadcrumb.textContent = `${meta.parentLabel} / ${meta.label}`;
     this.categoryTitle.textContent = `${meta.label}素材`;
+    this.dropHint.textContent =
+      this.activeCategory === "tiled"
+        ? "使用“导入文件夹”读取 JSON/TMJ、TSX 与图片；名称取对应 JSON/TMJ 文件名"
+        : meta.allowedExtensions?.length === 1
+          ? `仅支持 PNG 图片 · 右键素材可查看、重命名或删除`
+          : "将图片拖到这里，或点击“上传素材” · 右键素材可查看、重命名或删除";
 
     if (!this.apiAvailable) {
       this.grid.innerHTML = "";
@@ -841,46 +1275,88 @@ export class AssetLibrary {
       this.emptyState.hidden = false;
       this.emptyTitle.textContent = `还没有${meta.label}素材`;
       this.emptyDescription.textContent =
-        "将图片拖到这里，或使用右上角“上传素材”。";
+        this.activeCategory === "tiled"
+          ? "使用右上角“导入文件夹”选择 Tiled 地图项目。"
+          : "将图片拖到这里，或使用右上角“上传素材”。";
       return;
     }
 
     this.emptyState.hidden = true;
     this.grid.innerHTML = assets
       .map((asset) => {
-        const preview = asset.isSpriteSheet
-          ? `
+        const nameParts = splitAssetFileName(asset.fileName);
+        let preview;
+        if (asset.categoryId === "tiled") {
+          preview = `
+            <canvas
+              class="asset-tiled-canvas"
+              data-tiled-preview="${escapeHtml(asset.id)}"
+              aria-label="${escapeHtml(asset.fileName)} 地图预览"
+            ></canvas>
+          `;
+        } else if (asset.isSpriteSheet) {
+          preview = `
             <canvas
               class="asset-sprite-canvas"
               data-sprite-preview="${escapeHtml(asset.fileName)}"
               aria-label="${escapeHtml(asset.fileName)} 动画预览"
             ></canvas>
-          `
-          : `
-            <img src="${escapeHtml(
-              asset.url
-            )}" alt="${escapeHtml(
-              asset.fileName
-            )}" loading="lazy" />
           `;
+        } else if (usesNativeImagePreview(asset)) {
+          preview = `
+            <img
+              src="${escapeHtml(asset.url)}"
+              alt="${escapeHtml(asset.fileName)}"
+              loading="lazy"
+            />
+          `;
+        } else {
+          preview = `
+            <canvas
+              class="asset-image-canvas"
+              data-image-preview="${escapeHtml(asset.fileName)}"
+              aria-label="${escapeHtml(asset.fileName)} 图片预览"
+            ></canvas>
+          `;
+        }
         return `
           <article class="asset-card" data-asset-file="${escapeHtml(
-            asset.fileName
+            asset.categoryId === "tiled"
+              ? asset.id
+              : asset.fileName
           )}" title="${escapeHtml(
             `${asset.fileName} · 右键查看更多操作`
           )}">
             <div class="asset-preview">
               ${preview}
               <span class="asset-extension">${escapeHtml(
-                asset.fileName.split(".").at(-1)?.toUpperCase() ??
-                  ""
-              )}${asset.isSpriteSheet ? ` · ${asset.frameCount} 帧` : ""}</span>
+                asset.categoryId === "tiled"
+                  ? "TILED"
+                  : asset.fileName
+                      .split(".")
+                      .at(-1)
+                      ?.toUpperCase() ?? ""
+              )}${asset.isSpriteSheet ? ` · ${asset.frameCount} 帧` : ""}${
+                asset.categoryId === "tiled"
+                  ? ` · ${asset.collisionCount ?? 0} 碰撞`
+                  : ""
+              }</span>
             </div>
             <div class="asset-card-copy">
-              <strong>${escapeHtml(asset.fileName)}</strong>
-              <small>${formatBytes(asset.size)} · ${escapeHtml(
-                formatDate(asset.modifiedAt)
-              )}</small>
+              <div class="asset-name-row">
+                <strong class="asset-file-name" title="${escapeHtml(
+                  asset.fileName
+                )}">${escapeHtml(nameParts.stem)}</strong><span class="asset-file-extension">${escapeHtml(
+                  nameParts.extension
+                )}</span>
+              </div>
+              <small>${
+                asset.categoryId === "tiled"
+                  ? `${asset.tileWidth ?? 0} × ${
+                      asset.tileHeight ?? 0
+                    } 瓦片 · `
+                  : `${formatBytes(asset.size)} · `
+              }${escapeHtml(formatDate(asset.modifiedAt))}</small>
             </div>
           </article>
         `;
@@ -920,7 +1396,10 @@ export class AssetLibrary {
         for (const category of group.children ?? []) {
           this.categoryMeta[category.id] = {
             parentLabel: group.label,
-            label: category.label
+            label: category.label,
+            allowedExtensions:
+              category.allowedExtensions ??
+              ALL_IMAGE_EXTENSIONS
           };
         }
       }
@@ -929,8 +1408,6 @@ export class AssetLibrary {
       }`;
       this.apiState.textContent = "本地工作区";
       this.apiState.className = "asset-api-state is-connected";
-      this.dropHint.textContent =
-        "将图片拖到这里，或点击“上传素材” · 右键素材可查看或删除";
       this.render();
 
       const count = this.assets[this.activeCategory]?.length ?? 0;
@@ -967,8 +1444,16 @@ export class AssetLibrary {
   }
 
   validateFile(file) {
-    if (!SUPPORTED_EXTENSION.test(file.name)) {
-      return "仅支持 PNG、JPG、WebP、GIF 和 SVG 图片";
+    const meta = this.getActiveCategoryMeta();
+    const allowedExtensions =
+      meta?.allowedExtensions ?? ALL_IMAGE_EXTENSIONS;
+    const extension = file.name.includes(".")
+      ? `.${file.name.split(".").at(-1).toLowerCase()}`
+      : "";
+    if (!allowedExtensions.includes(extension)) {
+      return `${meta?.label ?? "当前分类"}仅支持 ${formatExtensionLabel(
+        allowedExtensions
+      )} 图片`;
     }
     if (file.size === 0) {
       return "文件内容为空";
@@ -996,9 +1481,13 @@ export class AssetLibrary {
     }
 
     const query = new URLSearchParams({
-      category: asset.categoryId,
-      filename: asset.fileName
+      category: asset.categoryId
     });
+    if (asset.categoryId === "tiled") {
+      query.set("assetId", asset.id);
+    } else {
+      query.set("filename", asset.fileName);
+    }
     this.isDeleting = true;
     this.setBusy();
     this.setStatus(`正在删除：${asset.fileName}`);
@@ -1043,6 +1532,13 @@ export class AssetLibrary {
       return;
     }
     if (this.isUploading || files.length === 0) {
+      return;
+    }
+    if (this.activeCategory === "tiled") {
+      this.showNotification(
+        "请使用“导入文件夹”选择 Tiled 地图项目。",
+        true
+      );
       return;
     }
 

@@ -1,13 +1,15 @@
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import {
   mkdir,
   readFile,
   readdir,
   rename,
+  rm,
   stat,
   writeFile
 } from "node:fs/promises";
-import { extname, join, resolve, sep } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ASSET_CATEGORIES,
@@ -17,10 +19,23 @@ import {
   getAssetCategory,
   listAssets,
   MAX_ASSET_BYTES,
+  renameAsset,
   saveAsset,
   updateAssetMetadata
 } from "./asset-storage.mjs";
 import { importBackgroundToGame } from "./background-import.mjs";
+import {
+  buildTiledMapBundle,
+  normalizeTiledFilePath
+} from "./tiled-map-import.mjs";
+import {
+  deleteTiledMapAsset,
+  getTiledMapNameConflicts,
+  importTiledMapToGame,
+  listTiledMapAssets,
+  publishTiledMapBundle,
+  renameTiledMapAsset
+} from "./tiled-asset-repository.mjs";
 import {
   normalizeLevel,
   validateLevel
@@ -42,6 +57,10 @@ const levelDirectory = join(gameRoot, "data", "levels");
 const configDirectory = join(gameRoot, "data", "configs");
 const manifestPath = join(levelDirectory, "manifest.json");
 const backupsDirectory = join(editorRoot, ".editor-backups");
+const tiledImportsDirectory = join(
+  editorRoot,
+  ".tiled-import-staging"
+);
 const assetRoot = join(editorRoot, "assets");
 const configuredPort = Number(process.env.PORT ?? 8090);
 const levelIdPattern = /^[a-z0-9][a-z0-9-]{1,63}$/;
@@ -127,7 +146,11 @@ async function readBinaryBody(request) {
 }
 
 function getAssetUrl(asset) {
-  return `/assets/${asset.relativePath
+  return getRelativeAssetUrl(asset.relativePath);
+}
+
+function getRelativeAssetUrl(relativePath) {
+  return `/assets/${relativePath
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/")}`;
@@ -138,17 +161,37 @@ async function getAssetSnapshot() {
     ASSET_CATEGORIES.flatMap((group) =>
       group.children.map(async (category) => ({
         category,
-        assets: await listAssets(assetRoot, category.id)
+        assets:
+          category.id === "tiled"
+            ? await listTiledMapAssets(assetRoot)
+            : await listAssets(assetRoot, category.id)
       }))
     )
   );
   const assets = {};
 
   for (const entry of loadedCategories) {
-    assets[entry.category.id] = entry.assets.map((asset) => ({
-      ...asset,
-      url: getAssetUrl(asset)
-    }));
+    assets[entry.category.id] = entry.assets.map((asset) => {
+      if (entry.category.id !== "tiled") {
+        return { ...asset, url: getAssetUrl(asset) };
+      }
+      const version = asset.revision
+        ? `?v=${encodeURIComponent(asset.revision)}`
+        : "";
+      return {
+        ...asset,
+        url: getAssetUrl(asset),
+        mapUrl: `${getRelativeAssetUrl(
+          `${asset.relativePath}/${asset.mapPath}`
+        )}${version}`,
+        tilesets: (asset.tilesets ?? []).map((tileset) => ({
+          ...tileset,
+          url: `${getRelativeAssetUrl(
+            `${asset.relativePath}/${tileset.imagePath}`
+          )}${version}`
+        }))
+      };
+    });
   }
 
   return {
@@ -159,11 +202,46 @@ async function getAssetSnapshot() {
       label: group.label,
       children: group.children.map((category) => ({
         id: category.id,
-        label: category.label
+        label: category.label,
+        allowedExtensions:
+          category.allowedExtensions ??
+          Object.keys(ASSET_MIME_TYPES)
       }))
     })),
     assets
   };
+}
+
+async function collectStagedFiles(directory, relativeDirectory = "") {
+  const entries = await readdir(join(directory, relativeDirectory), {
+    withFileTypes: true
+  });
+  const files = [];
+  for (const entry of entries) {
+    const relativePath = relativeDirectory
+      ? `${relativeDirectory}/${entry.name}`
+      : entry.name;
+    if (entry.isDirectory()) {
+      files.push(
+        ...(await collectStagedFiles(directory, relativePath))
+      );
+    } else if (entry.isFile()) {
+      files.push({
+        path: relativePath,
+        content: await readFile(
+          join(directory, ...relativePath.split("/"))
+        )
+      });
+    }
+  }
+  return files;
+}
+
+function getTiledImportDirectory(importId) {
+  if (!/^[a-f0-9-]{36}$/i.test(importId)) {
+    throw new AssetStorageError(400, "Tiled 导入批次 ID 不合法");
+  }
+  return join(tiledImportsDirectory, importId);
 }
 
 async function validateAndMigrateLevel(level, routeId) {
@@ -292,14 +370,26 @@ async function handleApi(request, response, requestUrl) {
   ) {
     try {
       const body = await readRequestBody(request);
-      const backgroundAsset = await importBackgroundToGame({
+      if (body.kind === "tiled-map") {
+        const background = await importTiledMapToGame({
+          assetRoot,
+          gameRoot,
+          assetId: body.assetId
+        });
+        sendJson(response, 200, {
+          ok: true,
+          background
+        });
+        return true;
+      }
+      const background = await importBackgroundToGame({
         assetRoot,
         gameRoot,
         assetId: body.assetId
       });
       sendJson(response, 200, {
         ok: true,
-        backgroundAsset
+        background
       });
     } catch (error) {
       sendJson(response, error.statusCode ?? 400, {
@@ -311,6 +401,178 @@ async function handleApi(request, response, requestUrl) {
 
   if (pathname === "/api/backgrounds/import") {
     sendJson(response, 405, { error: "不支持的请求方法" });
+    return true;
+  }
+
+  if (
+    pathname === "/api/tiled-maps/imports" &&
+    request.method === "POST"
+  ) {
+    const importId = randomUUID();
+    await mkdir(getTiledImportDirectory(importId), {
+      recursive: true
+    });
+    sendJson(response, 201, { ok: true, importId });
+    return true;
+  }
+
+  const tiledImportFilesMatch = pathname.match(
+    /^\/api\/tiled-maps\/imports\/([a-f0-9-]{36})\/files$/
+  );
+  if (tiledImportFilesMatch && request.method === "PUT") {
+    try {
+      const importDirectory = getTiledImportDirectory(
+        tiledImportFilesMatch[1]
+      );
+      const relativePath = normalizeTiledFilePath(
+        requestUrl.searchParams.get("path") ?? ""
+      );
+      const content = await readBinaryBody(request);
+      const outputPath = resolve(
+        importDirectory,
+        ...relativePath.split("/")
+      );
+      if (
+        outputPath !== importDirectory &&
+        !outputPath.startsWith(`${importDirectory}${sep}`)
+      ) {
+        throw new AssetStorageError(400, "Tiled 文件路径不合法");
+      }
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, content);
+      sendJson(response, 200, {
+        ok: true,
+        path: relativePath,
+        size: content.length
+      });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message
+      });
+    }
+    return true;
+  }
+
+  const tiledImportCompleteMatch = pathname.match(
+    /^\/api\/tiled-maps\/imports\/([a-f0-9-]{36})\/complete$/
+  );
+  if (tiledImportCompleteMatch && request.method === "POST") {
+    let importDirectory = null;
+    const publishedAssetIds = [];
+    try {
+      importDirectory = getTiledImportDirectory(
+        tiledImportCompleteMatch[1]
+      );
+      const body = await readRequestBody(request);
+      const files = await collectStagedFiles(importDirectory);
+      const mapPaths = Array.isArray(body.mapPaths)
+        ? [...new Set(body.mapPaths.map(String))]
+        : [];
+      if (mapPaths.length === 0) {
+        throw new AssetStorageError(
+          400,
+          "请选择至少一个要导入的 JSON/TMJ 地图"
+        );
+      }
+      const bundles = mapPaths.map((mapPath) =>
+        buildTiledMapBundle({ files, mapPath })
+      );
+      const bundleNames = bundles.map(
+        (bundle) => bundle.manifest.name.toLowerCase()
+      );
+      if (new Set(bundleNames).size !== bundleNames.length) {
+        throw new AssetStorageError(
+          400,
+          "所选 Tiled 地图中存在同名文件，请分批导入"
+        );
+      }
+      const conflicts = await getTiledMapNameConflicts(
+        assetRoot,
+        bundles
+      );
+      const overwriteNames = new Set(
+        Array.isArray(body.overwriteNames)
+          ? body.overwriteNames.map((name) =>
+              String(name).toLowerCase()
+            )
+          : []
+      );
+      const unresolvedConflicts = conflicts.filter(
+        (conflict) =>
+          !overwriteNames.has(conflict.name.toLowerCase())
+      );
+      if (unresolvedConflicts.length > 0) {
+        sendJson(response, 409, {
+          ok: false,
+          code: "TILED_NAME_CONFLICT",
+          error: `素材库中已存在同名 Tiled 地图：${unresolvedConflicts
+            .map((conflict) => conflict.name)
+            .join("、")}`,
+          conflicts: unresolvedConflicts
+        });
+        return true;
+      }
+      const assets = [];
+      for (const bundle of bundles) {
+        const asset = await publishTiledMapBundle({
+          assetRoot,
+          bundle,
+          overwrite: overwriteNames.has(
+            bundle.manifest.name.toLowerCase()
+          )
+        });
+        assets.push(asset);
+        publishedAssetIds.push(asset.id);
+      }
+      await rm(importDirectory, {
+        recursive: true,
+        force: true
+      });
+      sendJson(response, 201, { ok: true, assets });
+    } catch (error) {
+      for (const assetId of publishedAssetIds) {
+        await deleteTiledMapAsset(assetRoot, assetId).catch(
+          () => {}
+        );
+      }
+      if (importDirectory) {
+        await rm(importDirectory, {
+          recursive: true,
+          force: true
+        }).catch(() => {});
+      }
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message
+      });
+    }
+    return true;
+  }
+
+  const tiledImportMatch = pathname.match(
+    /^\/api\/tiled-maps\/imports\/([a-f0-9-]{36})$/
+  );
+  if (tiledImportMatch && request.method === "DELETE") {
+    try {
+      await rm(getTiledImportDirectory(tiledImportMatch[1]), {
+        recursive: true,
+        force: true
+      });
+      sendJson(response, 200, { ok: true });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message
+      });
+    }
+    return true;
+  }
+
+  if (
+    pathname.startsWith("/api/tiled-maps/imports") &&
+    !tiledImportFilesMatch &&
+    !tiledImportCompleteMatch &&
+    !tiledImportMatch
+  ) {
+    sendJson(response, 405, { error: "不支持的 Tiled 导入请求" });
     return true;
   }
 
@@ -356,6 +618,14 @@ async function handleApi(request, response, requestUrl) {
         requestUrl.searchParams.get("category") ?? "";
       const fileName =
         requestUrl.searchParams.get("filename") ?? "";
+      if (categoryId === "tiled") {
+        const deleted = await deleteTiledMapAsset(
+          assetRoot,
+          requestUrl.searchParams.get("assetId") ?? ""
+        );
+        sendJson(response, 200, { ok: true, deleted });
+        return true;
+      }
       const deleted = await deleteAsset(assetRoot, {
         categoryId,
         fileName
@@ -379,6 +649,29 @@ async function handleApi(request, response, requestUrl) {
       const fileName =
         requestUrl.searchParams.get("filename") ?? "";
       const body = await readRequestBody(request);
+      if (body.action === "rename") {
+        if (categoryId === "tiled") {
+          const renamed = await renameTiledMapAsset(assetRoot, {
+            assetId: body.assetId ?? fileName,
+            newName: body.newFileName
+          });
+          sendJson(response, 200, { ok: true, renamed });
+          return true;
+        }
+        const renamed = await renameAsset(assetRoot, {
+          categoryId,
+          fileName,
+          newFileName: body.newFileName
+        });
+        sendJson(response, 200, {
+          ok: true,
+          renamed
+        });
+        return true;
+      }
+      if (body.action && body.action !== "frame-rate") {
+        throw new AssetStorageError(400, "不支持的素材操作");
+      }
       const metadata = await updateAssetMetadata(assetRoot, {
         categoryId,
         fileName,
@@ -486,10 +779,18 @@ async function serveStatic(response, pathname) {
     const isContractRequest =
       decodedPath === "/platform_contract" ||
       decodedPath.startsWith("/platform_contract/");
-    const staticRoot = isContractRequest ? contractRoot : editorRoot;
+    const isGameAssetRequest =
+      decodedPath.startsWith("/game/assets/");
+    const staticRoot = isContractRequest
+      ? contractRoot
+      : isGameAssetRequest
+        ? gameRoot
+        : editorRoot;
     const relativePath = isContractRequest
       ? decodedPath.slice("/platform_contract".length) || "/"
-      : decodedPath;
+      : isGameAssetRequest
+        ? decodedPath.slice("/game".length)
+        : decodedPath;
     const filePath = resolve(staticRoot, `.${relativePath}`);
 
     if (

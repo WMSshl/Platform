@@ -12,7 +12,9 @@ import {
   insertPlacedObject,
   nudgeSelection,
   removeSelection,
+  restoreLevelBackgroundAspect,
   selectionKey,
+  setLevelBackground,
   setPathValue
 } from "../model/LevelModel.js";
 import {
@@ -686,7 +688,6 @@ export class EditorApp {
     const document = this.store.document;
     const selection = this.store.selection ?? { section: "level" };
     const rows = [];
-
     const buildRows = (section) => {
       const objects = document[section.key] ?? [];
       return objects
@@ -950,16 +951,27 @@ export class EditorApp {
     }
     if (action === "import-background") {
       this.backgroundPicker.open(
-        this.store.document.world.backgroundAsset?.id ?? ""
+        this.store.document.world.background?.id ?? ""
       );
       return;
     }
     if (action === "clear-background") {
       this.store.update((draft) => {
-        delete draft.world.backgroundAsset;
+        delete draft.world.background;
       });
+      this.store.setSelection({ section: "level" });
       this.inspector.render(this.store, { force: true });
       this.setStatus("已移除关卡背景素材");
+      return;
+    }
+    if (action === "restore-background-aspect") {
+      this.store.update((draft) => {
+        restoreLevelBackgroundAspect(draft);
+      });
+      this.inspector.render(this.store, { force: true });
+      this.setStatus(
+        "已按当前世界宽度和素材比例调整世界高度"
+      );
       return;
     }
   }
@@ -974,7 +986,14 @@ export class EditorApp {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        assetId: asset.relativePath
+        kind:
+          asset.categoryId === "tiled"
+            ? "tiled-map"
+            : "image",
+        assetId:
+          asset.categoryId === "tiled"
+            ? asset.id
+            : asset.relativePath
       })
     });
     const payload = await response.json().catch(() => ({}));
@@ -984,13 +1003,22 @@ export class EditorApp {
       );
     }
 
+    const background = payload.background;
     this.store.update((draft) => {
-      draft.world.backgroundAsset = payload.backgroundAsset;
+      setLevelBackground(draft, background);
     });
     this.inspector.render(this.store, { force: true });
-    this.setStatus(`已导入关卡背景：${asset.fileName}`);
-    this.showToast(`已导入关卡背景 ${asset.fileName}`);
-    return payload.backgroundAsset;
+    this.setStatus(
+      `已导入关卡${
+        background.type === "tiled" ? " Tiled 背景地图" : "背景"
+      }：${asset.fileName}`
+    );
+    this.showToast(
+      `已导入关卡${
+        background.type === "tiled" ? " Tiled 背景地图" : "背景"
+      } ${asset.fileName}`
+    );
+    return background;
   }
 
   handleKeyboard(event) {

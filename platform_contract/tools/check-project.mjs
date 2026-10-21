@@ -36,6 +36,21 @@ for (const directoryName of ["src", "tests", "tools"]) {
     if (result.status !== 0) {
       errors.push(`语法错误：${file}\n${result.stderr}`);
     }
+    if (directoryName === "src") {
+      const source = await readFile(file, "utf8");
+      const imports = [
+        ...source.matchAll(/from\s+["']([^"']+)["']/g)
+      ].map((match) => match[1]);
+      for (const specifier of imports) {
+        if (
+          /platform_(?:editor|dome)/.test(specifier) ||
+          /(?:^|\/)phaser(?:\/|$)/i.test(specifier) ||
+          specifier.startsWith("node:")
+        ) {
+          errors.push(`contract 边界违规：${file} -> ${specifier}`);
+        }
+      }
+    }
   }
 }
 
