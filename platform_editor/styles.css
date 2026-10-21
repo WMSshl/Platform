@@ -1492,40 +1492,30 @@ kbd {
   background: #0a121f;
 }
 
-.asset-category-heading {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 4px 9px;
-}
-
-.asset-category-heading strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.asset-category-heading > span:last-child {
-  color: var(--text-muted);
-  font-size: 9px;
-}
-
-.asset-category-icon {
-  display: grid;
-  place-items: center;
-  width: 23px;
-  height: 23px;
-  border: 1px solid rgba(56, 189, 248, 0.26);
-  border-radius: 6px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-family: "Segoe UI Symbol", sans-serif;
-  font-size: 13px;
-}
-
 .asset-subcategory-list {
   display: grid;
   gap: 3px;
+}
+
+.asset-subcategory-list + .asset-subcategory-list {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.asset-category-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px 4px;
+  color: var(--text-muted);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.asset-category-section-heading span:first-child {
+  color: var(--text-soft);
+  font-weight: 600;
 }
 
 .asset-subcategory {
@@ -1617,20 +1607,47 @@ kbd {
 }
 
 .asset-collection-heading > div:first-child {
-  display: grid;
-  gap: 3px;
+  min-width: 0;
 }
 
 .asset-breadcrumb {
-  color: var(--text-muted);
-  font-size: 9px;
-  letter-spacing: 0.05em;
-}
-
-.asset-collection-heading h3 {
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  color: var(--text-soft);
   font-size: 16px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.asset-breadcrumb button,
+.background-picker-breadcrumb button {
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.asset-breadcrumb button:hover,
+.background-picker-breadcrumb button:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.asset-breadcrumb button:last-child {
+  color: var(--text);
+}
+
+.asset-breadcrumb button.is-drop-target {
+  color: #fbbf24;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .asset-collection-actions {
@@ -1683,6 +1700,87 @@ kbd {
   gap: 12px;
 }
 
+.asset-folder-card {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 158px;
+  padding: 14px;
+  border: 1px solid #31445d;
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(245, 158, 11, 0.08), transparent 48%),
+    #0a1320;
+  color: var(--text-soft);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.asset-folder-card[draggable="true"] {
+  cursor: grab;
+}
+
+.asset-folder-card.is-dragging {
+  cursor: grabbing;
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+.asset-folder-card:hover,
+.asset-folder-card:focus-visible {
+  border-color: rgba(245, 158, 11, 0.58);
+  background:
+    linear-gradient(145deg, rgba(245, 158, 11, 0.13), transparent 52%),
+    #0c1624;
+  transform: translateY(-1px);
+}
+
+.asset-folder-card.is-context-target,
+.asset-folder-card.is-drop-target {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.18);
+}
+
+.asset-folder-icon {
+  align-self: center;
+  color: #fbbf24;
+  font-family: "Segoe UI Symbol", sans-serif;
+  font-size: 48px;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 8px 22px rgba(245, 158, 11, 0.18);
+}
+
+.asset-folder-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.asset-folder-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-folder-copy small,
+.asset-folder-action {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.asset-folder-action {
+  margin-top: 4px;
+  color: #fbbf24;
+}
+
 .asset-loading {
   display: grid;
   place-items: center;
@@ -1701,6 +1799,16 @@ kbd {
   transition:
     border-color 120ms ease,
     transform 120ms ease;
+}
+
+.asset-card[draggable="true"] {
+  cursor: grab;
+}
+
+.asset-card.is-dragging {
+  cursor: grabbing;
+  opacity: 0.5;
+  transform: scale(0.98);
 }
 
 .asset-card:hover {
@@ -2080,6 +2188,106 @@ kbd {
   will-change: transform;
 }
 
+.asset-name-conflict-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 6, 23, 0.74);
+  backdrop-filter: blur(4px);
+}
+
+.asset-name-conflict-dialog {
+  display: grid;
+  width: min(470px, 100%);
+  gap: 11px;
+  padding: 20px;
+  border: 1px solid #344a64;
+  border-radius: 10px;
+  background: #0c1624;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+}
+
+.asset-name-conflict-dialog h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.asset-name-conflict-dialog p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.7;
+}
+
+.asset-name-conflict-field {
+  display: grid;
+  gap: 5px;
+  color: var(--text-soft);
+  font-size: 9px;
+}
+
+.asset-name-input-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.asset-name-input-row input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #07111d;
+  color: var(--text);
+}
+
+.asset-name-fixed-suffix {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  background: #0a1422;
+  color: var(--text-muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.asset-name-input-row:has(.asset-name-fixed-suffix:not([hidden]))
+  input {
+  border-radius: 6px 0 0 6px;
+}
+
+.asset-name-input-row input.is-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(251, 113, 133, 0.12);
+}
+
+.asset-name-conflict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.asset-name-conflict-actions .button {
+  min-width: 84px;
+}
+
+.asset-name-conflict-actions #asset-name-conflict-overwrite {
+  border-color: rgba(251, 113, 133, 0.42);
+  background: rgba(251, 113, 133, 0.12);
+  color: #fecdd3;
+}
+
 .asset-frame-rate-panel {
   position: absolute;
   inset: 0;
@@ -2349,6 +2557,130 @@ kbd {
   gap: 7px;
 }
 
+.background-picker-body {
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.background-picker-taxonomy {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 18px 14px;
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(56, 189, 248, 0.035), transparent 38%),
+    #09111d;
+}
+
+.background-picker-taxonomy-label {
+  padding: 0 8px 9px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.background-picker-categories {
+  display: grid;
+  gap: 5px;
+}
+
+.background-picker-category {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.background-picker-category:hover {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.background-picker-category.is-active {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--accent-soft);
+  color: #e0f2fe;
+}
+
+.background-picker-category > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.background-picker-category > span:last-child {
+  min-width: 21px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #08101b;
+  color: var(--text-muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 8px;
+  justify-content: center;
+}
+
+.background-picker-taxonomy p {
+  margin: auto 0 0;
+  padding: 14px 8px 0;
+  color: var(--text-muted);
+  font-size: 8px;
+  line-height: 1.7;
+}
+
+.background-picker-collection {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.background-picker-collection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 20px 0;
+}
+
+.background-picker-heading-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.background-picker-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  color: var(--text-soft);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.background-picker-breadcrumb button:last-child {
+  color: var(--text);
+}
+
+.background-picker-collection-heading span {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
 .background-picker-grid {
   grid-row: 2;
   display: grid;
@@ -2356,7 +2688,7 @@ kbd {
   align-content: start;
   gap: 12px;
   min-height: 0;
-  padding: 18px 20px;
+  padding: 12px 20px 18px;
   overflow: auto;
   scrollbar-color: #293b56 transparent;
   scrollbar-width: thin;
@@ -2386,6 +2718,65 @@ kbd {
   transition:
     border-color 120ms ease,
     transform 120ms ease;
+}
+
+.background-folder-choice {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 192px;
+  padding: 16px;
+  border: 1px solid #3a4c62;
+  border-radius: 9px;
+  background:
+    linear-gradient(145deg, rgba(245, 158, 11, 0.09), transparent 52%),
+    #0a121f;
+  color: var(--text-soft);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.background-folder-choice:hover {
+  border-color: rgba(245, 158, 11, 0.62);
+  transform: translateY(-1px);
+}
+
+.background-folder-icon {
+  align-self: center;
+  color: #fbbf24;
+  font-family: "Segoe UI Symbol", sans-serif;
+  font-size: 52px;
+  line-height: 1;
+  text-align: center;
+}
+
+.background-folder-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.background-folder-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.background-folder-copy small,
+.background-folder-action {
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.background-folder-action {
+  margin-top: 5px;
+  color: #fbbf24;
 }
 
 .background-choice:hover:not(:disabled) {

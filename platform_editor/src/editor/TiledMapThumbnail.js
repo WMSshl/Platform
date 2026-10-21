@@ -74,9 +74,13 @@ function drawTile(
  * 将 Tiled 地图合成到素材卡片 canvas。
  */
 export class TiledMapThumbnail {
-  constructor(canvas, asset) {
+  constructor(canvas, asset, { maxSize = MAX_PREVIEW_SIZE } = {}) {
     this.canvas = canvas;
     this.asset = asset;
+    this.maxSize = Math.max(
+      1,
+      Number(maxSize) || MAX_PREVIEW_SIZE
+    );
   }
 
   async start() {
@@ -106,7 +110,7 @@ export class TiledMapThumbnail {
     const sourceHeight = map.height * map.tileheight;
     const scale = Math.min(
       1,
-      MAX_PREVIEW_SIZE / Math.max(sourceWidth, sourceHeight)
+      this.maxSize / Math.max(sourceWidth, sourceHeight)
     );
     this.canvas.width = Math.max(1, Math.round(sourceWidth * scale));
     this.canvas.height = Math.max(1, Math.round(sourceHeight * scale));

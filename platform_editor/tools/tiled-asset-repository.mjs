@@ -8,7 +8,7 @@ import {
   stat,
   writeFile
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { AssetStorageError } from "./asset-storage.mjs";
 import {
   normalizeTiledAssetName,
@@ -151,13 +151,13 @@ async function writeBundleDirectory(targetDirectory, bundle, id) {
 export async function publishTiledMapBundle({
   assetRoot,
   bundle,
-  overwrite = false
+  overwrite = false,
+  allowDuplicateName = false
 }) {
   const manifests = await readStoredManifests(assetRoot);
-  const existing = findConflict(
-    manifests,
-    bundle.manifest.name
-  );
+  const existing = allowDuplicateName
+    ? null
+    : findConflict(manifests, bundle.manifest.name);
   if (existing && !overwrite) {
     const error = new AssetStorageError(
       409,
@@ -244,28 +244,59 @@ export async function listTiledMapAssets(assetRoot) {
       // 损坏素材组不影响其他素材加载。
     }
   }
-  const duplicateNameCounts = new Map();
-  for (const asset of assets) {
-    const key = String(asset.name ?? "").toLowerCase();
-    duplicateNameCounts.set(
-      key,
-      (duplicateNameCounts.get(key) ?? 0) + 1
-    );
-  }
-  for (const asset of assets) {
-    const key = String(asset.name ?? "").toLowerCase();
-    if ((duplicateNameCounts.get(key) ?? 0) <= 1) {
-      continue;
-    }
-    const extension = asset.fileName.includes(".")
-      ? asset.fileName.slice(asset.fileName.lastIndexOf("."))
-      : "";
-    asset.name = asset.id;
-    asset.fileName = `${asset.id}${extension}`;
-  }
   return assets.sort((left, right) =>
     right.modifiedAt.localeCompare(left.modifiedAt)
   );
+}
+
+export async function copyTiledMapAsset(
+  assetRoot,
+  { assetId }
+) {
+  const normalizedId = normalizeTiledFilePath(assetId);
+  if (normalizedId.includes("/")) {
+    throw new AssetStorageError(400, "Tiled 素材 ID 不合法");
+  }
+  const manifests = await readStoredManifests(assetRoot);
+  const source = manifests.find(
+    (manifest) => manifest.id === normalizedId
+  );
+  if (!source) {
+    throw new AssetStorageError(404, "Tiled 素材不存在");
+  }
+  const target = await availableBundleDirectory(
+    assetRoot,
+    source.name || normalizedId
+  );
+  await cp(source.directory, target.directory, {
+    recursive: true,
+    force: false,
+    errorOnExist: true
+  });
+  const manifestPath = join(target.directory, "asset.json");
+  const manifest = JSON.parse(
+    await readFile(manifestPath, "utf8")
+  );
+  manifest.id = target.name;
+  manifest.relativePath = [
+    ...TILED_GROUP_SEGMENTS,
+    target.name
+  ].join("/");
+  manifest.modifiedAt = new Date().toISOString();
+  try {
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      "utf8"
+    );
+  } catch (error) {
+    await rm(target.directory, {
+      recursive: true,
+      force: true
+    }).catch(() => {});
+    throw error;
+  }
+  return manifest;
 }
 
 export async function renameTiledMapAsset(
@@ -283,7 +314,11 @@ export async function renameTiledMapAsset(
   const directory = join(tiledMapDirectory(assetRoot), normalizedId);
   const manifestPath = join(directory, "asset.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const extension = extname(
+    manifest.fileName ?? manifest.sourceFile ?? ""
+  );
   manifest.name = name;
+  manifest.fileName = extension ? `${name}${extension}` : name;
   manifest.modifiedAt = new Date().toISOString();
   await writeFile(
     manifestPath,

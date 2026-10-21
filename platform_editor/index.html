@@ -268,12 +268,11 @@
         <aside class="asset-taxonomy" aria-label="素材分类">
           <div class="asset-taxonomy-label">分类</div>
           <div class="asset-category-group">
-            <div class="asset-category-heading">
-              <span class="asset-category-icon" aria-hidden="true">⌘</span>
-              <strong>地图</strong>
-              <span>4 类</span>
-            </div>
             <div class="asset-subcategory-list">
+              <div class="asset-category-section-heading">
+                <span>关卡背景</span>
+                <span>2 类</span>
+              </div>
               <button
                 class="asset-subcategory is-active"
                 type="button"
@@ -281,10 +280,23 @@
               >
                 <span>
                   <i class="asset-subcategory-dot is-background"></i>
-                  背景
+                  静态背景
                 </span>
                 <span data-asset-count>0</span>
               </button>
+              <button
+                class="asset-subcategory"
+                type="button"
+                data-asset-category="tiled"
+              >
+                <span>
+                  <i class="asset-subcategory-dot is-tiled"></i>
+                  Tiled 背景
+                </span>
+                <span data-asset-count>0</span>
+              </button>
+            </div>
+            <div class="asset-subcategory-list">
               <button
                 class="asset-subcategory"
                 type="button"
@@ -307,17 +319,6 @@
                 </span>
                 <span data-asset-count>0</span>
               </button>
-              <button
-                class="asset-subcategory"
-                type="button"
-                data-asset-category="tiled"
-              >
-                <span>
-                  <i class="asset-subcategory-dot is-tiled"></i>
-                  Tiled 地图
-                </span>
-                <span data-asset-count>0</span>
-              </button>
             </div>
           </div>
           <p class="asset-scope-note">
@@ -328,10 +329,11 @@
         <section class="asset-collection">
           <div class="asset-collection-heading">
             <div>
-              <span class="asset-breadcrumb" id="asset-breadcrumb">
-                地图 / 背景
-              </span>
-              <h3 id="asset-category-title">背景素材</h3>
+              <nav
+                class="asset-breadcrumb"
+                id="asset-breadcrumb"
+                aria-label="当前位置"
+              ></nav>
             </div>
             <div class="asset-collection-actions">
               <button
@@ -410,6 +412,58 @@
           class="asset-context-item"
           type="button"
           role="menuitem"
+          data-asset-action="new-folder"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">＋</span>
+          <span>
+            <strong>新建文件夹</strong>
+            <small>在当前分类中创建文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-asset-action="paste"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">▣</span>
+          <span>
+            <strong>粘贴</strong>
+            <small>粘贴到当前文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-asset-action="rename-folder"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">✎</span>
+          <span>
+            <strong>重命名文件夹</strong>
+            <small>修改文件夹名称</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item is-danger"
+          type="button"
+          role="menuitem"
+          data-asset-action="delete-folder"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">⌫</span>
+          <span>
+            <strong>删除文件夹</strong>
+            <small>同时删除其中的素材和子文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
           data-asset-action="frame-rate"
           hidden
         >
@@ -417,6 +471,32 @@
           <span>
             <strong>帧速</strong>
             <small id="asset-context-frame-rate">8 FPS</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-asset-action="copy"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">⧉</span>
+          <span>
+            <strong>复制</strong>
+            <small>复制到其他文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-asset-action="cut"
+          hidden
+        >
+          <span class="asset-context-icon" aria-hidden="true">✂</span>
+          <span>
+            <strong>剪切</strong>
+            <small>移动到其他文件夹</small>
           </span>
         </button>
         <button
@@ -455,6 +535,65 @@
             <small>从工作区移除素材</small>
           </span>
         </button>
+      </div>
+
+      <div
+        class="asset-name-conflict-panel"
+        id="asset-name-conflict-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="asset-name-conflict-title"
+        hidden
+      >
+        <div class="asset-name-conflict-dialog">
+          <span
+            class="inspector-eyebrow"
+            id="asset-name-dialog-eyebrow"
+          >
+            名称冲突
+          </span>
+          <h3 id="asset-name-conflict-title">目标位置已有同名素材</h3>
+          <p id="asset-name-conflict-description"></p>
+          <label class="asset-name-conflict-field">
+            <span>名称</span>
+            <span class="asset-name-input-row">
+              <input
+                id="asset-name-conflict-input"
+                type="text"
+                maxlength="120"
+                spellcheck="false"
+                autocomplete="off"
+              />
+              <span
+                class="asset-name-fixed-suffix"
+                id="asset-name-fixed-suffix"
+              ></span>
+            </span>
+          </label>
+          <div class="asset-name-conflict-actions">
+            <button
+              class="button button-quiet"
+              id="asset-name-conflict-cancel"
+              type="button"
+            >
+              不导入
+            </button>
+            <button
+              class="button button-quiet"
+              id="asset-name-conflict-rename"
+              type="button"
+            >
+              重命名
+            </button>
+            <button
+              class="button button-danger"
+              id="asset-name-conflict-overwrite"
+              type="button"
+            >
+              覆盖
+            </button>
+          </div>
+        </div>
       </div>
 
       <section
@@ -512,6 +651,12 @@
             alt=""
             draggable="false"
           />
+          <canvas
+            class="asset-viewer-image"
+            id="asset-viewer-tiled"
+            aria-label="Tiled 背景完整预览"
+            hidden
+          ></canvas>
           <canvas
             class="asset-viewer-image"
             id="asset-viewer-sprite"
@@ -612,9 +757,9 @@
     >
       <div class="background-picker-heading">
         <div>
-          <span class="inspector-eyebrow">素材库 / 地图 / 背景</span>
+          <span class="inspector-eyebrow">素材库 / 关卡背景</span>
           <h2 id="background-picker-title">选择关卡背景</h2>
-          <p>导入后会用所选素材替换当前关卡的背景。</p>
+          <p>先选择背景类别，再挑选素材替换当前关卡背景。</p>
         </div>
         <div class="background-picker-actions">
           <button
@@ -634,18 +779,49 @@
           </button>
         </div>
       </div>
-      <div
-        class="background-picker-grid"
-        id="background-picker-grid"
-      ></div>
-      <div
-        class="background-picker-empty"
-        id="background-picker-empty"
-        hidden
-      >
-        <span aria-hidden="true">◇</span>
-        <strong>还没有背景素材</strong>
-        <p>请先在顶部“素材库 → 地图 → 背景”中上传背景图片。</p>
+      <div class="background-picker-body">
+        <aside
+          class="background-picker-taxonomy"
+          aria-label="关卡背景分类"
+        >
+          <span class="background-picker-taxonomy-label">关卡背景</span>
+          <div
+            class="background-picker-categories"
+            id="background-picker-categories"
+          ></div>
+          <p>素材按背景类型分类，选择类别后再挑选具体素材。</p>
+        </aside>
+        <section class="background-picker-collection">
+          <div class="background-picker-collection-heading">
+            <div class="background-picker-heading-copy">
+              <nav
+                class="background-picker-breadcrumb"
+                id="background-picker-breadcrumb"
+                aria-label="当前位置"
+              ></nav>
+            </div>
+            <span id="background-picker-category-summary">
+              正在读取…
+            </span>
+          </div>
+          <div
+            class="background-picker-grid"
+            id="background-picker-grid"
+          ></div>
+          <div
+            class="background-picker-empty"
+            id="background-picker-empty"
+            hidden
+          >
+            <span aria-hidden="true">◇</span>
+            <strong id="background-picker-empty-title">
+              还没有静态背景素材
+            </strong>
+            <p id="background-picker-empty-description">
+              请先在素材库的“关卡背景 → 静态背景”中上传图片。
+            </p>
+          </div>
+        </section>
       </div>
       <div class="background-picker-footer">
         <span id="background-picker-status" aria-live="polite">

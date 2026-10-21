@@ -12,11 +12,13 @@ import {
   listTiledMapCandidates
 } from "../tools/tiled-map-import.mjs";
 import {
+  copyTiledMapAsset,
   deleteTiledMapAsset,
   getTiledMapNameConflicts,
   importTiledMapToGame,
   listTiledMapAssets,
-  publishTiledMapBundle
+  publishTiledMapBundle,
+  renameTiledMapAsset
 } from "../tools/tiled-asset-repository.mjs";
 
 const embeddedPng =
@@ -332,6 +334,23 @@ test("published Tiled JSON map can be copied into the game project", async (t) =
   assert.equal(overwritten.id, published.id);
   assert.equal((await listTiledMapAssets(assetRoot)).length, 1);
   assert.equal(assets[0].id, published.id);
+
+  const copied = await copyTiledMapAsset(assetRoot, {
+    assetId: published.id
+  });
+  assert.notEqual(copied.id, published.id);
+  assert.equal(copied.name, "courtyard");
+  assert.equal((await listTiledMapAssets(assetRoot)).length, 2);
+  await deleteTiledMapAsset(assetRoot, copied.id);
+
+  await renameTiledMapAsset(assetRoot, {
+    assetId: published.id,
+    newName: "courtyard-renamed"
+  });
+  const [renamedAsset] = await listTiledMapAssets(assetRoot);
+  assert.equal(renamedAsset.name, "courtyard-renamed");
+  assert.equal(renamedAsset.fileName, "courtyard-renamed.json");
+  assert.equal(renamedAsset.sourceFile, "project/courtyard.json");
 
   const backgroundMap = await importTiledMapToGame({
     assetRoot,

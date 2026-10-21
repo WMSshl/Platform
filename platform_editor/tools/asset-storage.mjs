@@ -1,4 +1,5 @@
 import {
+  copyFile,
   mkdir,
   open,
   readdir,
@@ -28,8 +29,12 @@ export const ASSET_CATEGORIES = [
     children: [
       {
         id: "background",
-        label: "背景",
-        storageSegments: ["map", "backgrounds"]
+        label: "静态背景",
+        storageSegments: ["map", "backgrounds"],
+        group: {
+          id: "level-background",
+          label: "关卡背景"
+        }
       },
       {
         id: "entity",
@@ -44,9 +49,13 @@ export const ASSET_CATEGORIES = [
       },
       {
         id: "tiled",
-        label: "Tiled 地图",
+        label: "Tiled 背景",
         storageSegments: ["map", "tiled"],
-        allowedExtensions: [".json", ".tmj"]
+        allowedExtensions: [".json", ".tmj"],
+        group: {
+          id: "level-background",
+          label: "关卡背景"
+        }
       }
     ]
   }
@@ -277,6 +286,90 @@ export async function saveAsset(
       target.fileName
     ].join("/"),
     size: buffer.length
+  };
+}
+
+export async function copyAsset(
+  assetRoot,
+  {
+    categoryId,
+    fileName: rawFileName,
+    targetName: rawTargetName
+  }
+) {
+  const category = getAssetCategory(categoryId);
+  const sourceName = normalizeAssetFileName(rawFileName);
+  const requestedSource = String(rawFileName ?? "").normalize(
+    "NFC"
+  );
+  if (sourceName.fileName !== requestedSource) {
+    throw new AssetStorageError(400, "素材文件名不合法");
+  }
+  const normalizedTarget = normalizeAssetFileName(
+    rawTargetName ?? sourceName.fileName
+  );
+  validateCategoryExtension(category, normalizedTarget.fileName);
+  if (
+    normalizedTarget.extension !== sourceName.extension
+  ) {
+    throw new AssetStorageError(
+      400,
+      "复制素材不能修改文件后缀"
+    );
+  }
+  const directory = join(
+    assetRoot,
+    ...category.storageSegments
+  );
+  const sourcePath = join(directory, sourceName.fileName);
+  const sourceMetadataPath = getAssetMetadataPath(sourcePath);
+  try {
+    const sourceStat = await stat(sourcePath);
+    if (!sourceStat.isFile()) {
+      throw new AssetStorageError(400, "素材不是文件");
+    }
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw new AssetStorageError(404, "素材不存在");
+    }
+    throw error;
+  }
+  const target = await getAvailablePath(
+    directory,
+    normalizedTarget.fileName
+  );
+  await copyFile(sourcePath, target.filePath);
+  let hasMetadata = false;
+  try {
+    const metadataStat = await stat(sourceMetadataPath);
+    hasMetadata = metadataStat.isFile();
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      await unlink(target.filePath).catch(() => {});
+      throw error;
+    }
+  }
+  if (hasMetadata) {
+    try {
+      await copyFile(
+        sourceMetadataPath,
+        getAssetMetadataPath(target.filePath)
+      );
+    } catch (error) {
+      await unlink(target.filePath).catch(() => {});
+      throw error;
+    }
+  }
+  const fileStat = await stat(target.filePath);
+  return {
+    id: `${category.id}:${target.fileName}`,
+    categoryId: category.id,
+    fileName: target.fileName,
+    relativePath: [
+      ...category.storageSegments,
+      target.fileName
+    ].join("/"),
+    size: fileStat.size
   };
 }
 

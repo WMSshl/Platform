@@ -1003,7 +1003,12 @@ export class EditorApp {
       );
     }
 
-    const background = payload.background;
+    const background = {
+      ...payload.background,
+      fileName:
+        asset.displayName ??
+        payload.background.fileName
+    };
     this.store.update((draft) => {
       setLevelBackground(draft, background);
     });
@@ -1011,12 +1016,12 @@ export class EditorApp {
     this.setStatus(
       `已导入关卡${
         background.type === "tiled" ? " Tiled 背景地图" : "背景"
-      }：${asset.fileName}`
+      }：${asset.displayName ?? asset.fileName}`
     );
     this.showToast(
       `已导入关卡${
         background.type === "tiled" ? " Tiled 背景地图" : "背景"
-      } ${asset.fileName}`
+      } ${asset.displayName ?? asset.fileName}`
     );
     return background;
   }

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  ASSET_CATEGORIES,
   AssetStorageError,
   deleteAsset,
   listAssets,
@@ -14,6 +15,106 @@ import {
   updateAssetMetadata,
   validateAssetContentType
 } from "../tools/asset-storage.mjs";
+import {
+  assignAssetFolder,
+  createAssetFolder,
+  deleteAssetFolder,
+  getAssetFolderState,
+  listAssetFolders,
+  renameAssetFolder
+} from "../tools/asset-organization.mjs";
+
+test("asset folders support nesting, assignment and recursive deletion", async (t) => {
+  const assetRoot = await mkdtemp(
+    join(tmpdir(), "platform-editor-folders-")
+  );
+  t.after(() => rm(assetRoot, { recursive: true, force: true }));
+
+  const parent = await createAssetFolder(assetRoot, {
+    categoryId: "background",
+    name: "场景"
+  });
+  const child = await createAssetFolder(assetRoot, {
+    categoryId: "background",
+    name: "庭院",
+    parentId: parent.id
+  });
+  const asset = await saveAsset(assetRoot, {
+    categoryId: "background",
+    fileName: "庭院.png",
+    contentType: "image/png",
+    content: Buffer.from("background-image")
+  });
+  await assignAssetFolder(assetRoot, {
+    categoryId: "background",
+    assetId: asset.id,
+    folderId: child.id
+  });
+
+  const folders = await listAssetFolders(
+    assetRoot,
+    "background"
+  );
+  assert.equal(
+    folders.find((folder) => folder.id === parent.id).assetCount,
+    1
+  );
+  assert.equal(
+    folders.find((folder) => folder.id === child.id).parentId,
+    parent.id
+  );
+
+  await renameAssetFolder(assetRoot, {
+    categoryId: "background",
+    folderId: parent.id,
+    name: "关卡场景"
+  });
+  const deletedAssetIds = [];
+  const deleted = await deleteAssetFolder(assetRoot, {
+    categoryId: "background",
+    folderId: parent.id,
+    deleteAssetById: async (assetId) => {
+      deletedAssetIds.push(assetId);
+    }
+  });
+
+  assert.deepEqual(deletedAssetIds, [asset.id]);
+  assert.equal(deleted.folders.length, 2);
+  assert.deepEqual(
+    await getAssetFolderState(assetRoot, "background"),
+    {
+      version: 2,
+      folders: [],
+      assignments: {},
+      displayNames: {}
+    }
+  );
+});
+
+test("level backgrounds share the new group without changing storage paths", () => {
+  const mapGroup = ASSET_CATEGORIES.find(
+    (candidate) => candidate.id === "map"
+  );
+  const background = mapGroup.children.find(
+    (candidate) => candidate.id === "background"
+  );
+  const tiled = mapGroup.children.find(
+    (candidate) => candidate.id === "tiled"
+  );
+
+  assert.equal(background.label, "静态背景");
+  assert.equal(tiled.label, "Tiled 背景");
+  assert.deepEqual(background.group, {
+    id: "level-background",
+    label: "关卡背景"
+  });
+  assert.deepEqual(tiled.group, background.group);
+  assert.deepEqual(background.storageSegments, [
+    "map",
+    "backgrounds"
+  ]);
+  assert.deepEqual(tiled.storageSegments, ["map", "tiled"]);
+});
 
 function pngHeader(width, height) {
   const buffer = Buffer.alloc(24);

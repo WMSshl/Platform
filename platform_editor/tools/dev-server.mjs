@@ -19,10 +19,24 @@ import {
   getAssetCategory,
   listAssets,
   MAX_ASSET_BYTES,
-  renameAsset,
   saveAsset,
   updateAssetMetadata
 } from "./asset-storage.mjs";
+import {
+  assignAssetFolder,
+  createAssetFolder,
+  deleteAssetFolder,
+  findAssetNameConflicts,
+  getAssetDisplayName,
+  getAssetFolderState,
+  getAvailableAssetName,
+  listAssetFolders,
+  pruneAssetFolderState,
+  renameAssetDisplayName,
+  renameAssetFolder,
+  updateAssetFolderState
+} from "./asset-organization.mjs";
+import { pasteClipboardItem } from "./asset-clipboard-service.mjs";
 import { importBackgroundToGame } from "./background-import.mjs";
 import {
   buildTiledMapBundle,
@@ -30,11 +44,9 @@ import {
 } from "./tiled-map-import.mjs";
 import {
   deleteTiledMapAsset,
-  getTiledMapNameConflicts,
   importTiledMapToGame,
   listTiledMapAssets,
   publishTiledMapBundle,
-  renameTiledMapAsset
 } from "./tiled-asset-repository.mjs";
 import {
   normalizeLevel,
@@ -156,6 +168,12 @@ function getRelativeAssetUrl(relativePath) {
     .join("/")}`;
 }
 
+async function listCategoryAssets(categoryId) {
+  return categoryId === "tiled"
+    ? listTiledMapAssets(assetRoot)
+    : listAssets(assetRoot, categoryId);
+}
+
 async function getAssetSnapshot() {
   const loadedCategories = await Promise.all(
     ASSET_CATEGORIES.flatMap((group) =>
@@ -169,17 +187,41 @@ async function getAssetSnapshot() {
     )
   );
   const assets = {};
+  const folders = {};
 
   for (const entry of loadedCategories) {
-    assets[entry.category.id] = entry.assets.map((asset) => {
+    const categoryId = entry.category.id;
+    const folderState = await pruneAssetFolderState(
+      assetRoot,
+      categoryId,
+      entry.assets
+    );
+    folders[categoryId] = await listAssetFolders(
+      assetRoot,
+      categoryId
+    );
+    assets[categoryId] = entry.assets.map((asset) => {
+      const folderId =
+        folderState.assignments[asset.id] ?? null;
+      const displayName = getAssetDisplayName(
+        asset,
+        folderState
+      );
       if (entry.category.id !== "tiled") {
-        return { ...asset, url: getAssetUrl(asset) };
+        return {
+          ...asset,
+          folderId,
+          displayName,
+          url: getAssetUrl(asset)
+        };
       }
       const version = asset.revision
         ? `?v=${encodeURIComponent(asset.revision)}`
         : "";
       return {
         ...asset,
+        folderId,
+        displayName,
         url: getAssetUrl(asset),
         mapUrl: `${getRelativeAssetUrl(
           `${asset.relativePath}/${asset.mapPath}`
@@ -203,12 +245,14 @@ async function getAssetSnapshot() {
       children: group.children.map((category) => ({
         id: category.id,
         label: category.label,
+        group: category.group ?? null,
         allowedExtensions:
           category.allowedExtensions ??
           Object.keys(ASSET_MIME_TYPES)
       }))
     })),
-    assets
+    assets,
+    folders
   };
 }
 
@@ -393,7 +437,12 @@ async function handleApi(request, response, requestUrl) {
       });
     } catch (error) {
       sendJson(response, error.statusCode ?? 400, {
-        error: error.message
+        error: error.message,
+        code: error.code,
+        itemKind: error.itemKind,
+        name: error.itemName,
+        suggestedName: error.suggestedName,
+        conflicts: error.conflicts
       });
     }
     return true;
@@ -486,10 +535,12 @@ async function handleApi(request, response, requestUrl) {
           "所选 Tiled 地图中存在同名文件，请分批导入"
         );
       }
-      const conflicts = await getTiledMapNameConflicts(
+      const folderId = body.folderId || null;
+      const folderState = await getAssetFolderState(
         assetRoot,
-        bundles
+        "tiled"
       );
+      const tiledAssets = await listTiledMapAssets(assetRoot);
       const overwriteNames = new Set(
         Array.isArray(body.overwriteNames)
           ? body.overwriteNames.map((name) =>
@@ -497,9 +548,41 @@ async function handleApi(request, response, requestUrl) {
             )
           : []
       );
+      const renameNames = new Map(
+        body.renameNames && typeof body.renameNames === "object"
+          ? Object.entries(body.renameNames).map(
+              ([name, renamed]) => [
+                name.toLowerCase(),
+                String(renamed)
+              ]
+            )
+          : []
+      );
+      const conflicts = bundles.flatMap((bundle) => {
+        const displayName = bundle.manifest.fileName;
+        const matches = findAssetNameConflicts(
+          folderState,
+          tiledAssets,
+          { folderId, displayName }
+        );
+        return matches.map((asset) => ({
+          name: displayName,
+          existingId: asset.id,
+          suggestedName: getAvailableAssetName(
+            folderState,
+            tiledAssets,
+            { folderId, displayName }
+          )
+        }));
+      });
       const unresolvedConflicts = conflicts.filter(
-        (conflict) =>
-          !overwriteNames.has(conflict.name.toLowerCase())
+        (conflict) => {
+          const key = conflict.name.toLowerCase();
+          return (
+            !overwriteNames.has(key) &&
+            !renameNames.has(key)
+          );
+        }
       );
       if (unresolvedConflicts.length > 0) {
         sendJson(response, 409, {
@@ -513,17 +596,66 @@ async function handleApi(request, response, requestUrl) {
         return true;
       }
       const assets = [];
+      const overwrittenTiledAssetIds = [];
       for (const bundle of bundles) {
+        const originalName = bundle.manifest.fileName;
+        const conflictKey = originalName.toLowerCase();
+        const renamed = renameNames.get(conflictKey);
+        if (renamed) {
+          const extension = extname(originalName);
+          const renamedExtension = extname(renamed);
+          const displayName =
+            renamedExtension.toLowerCase() ===
+            extension.toLowerCase()
+              ? renamed
+              : `${renamed}${extension}`;
+          bundle.manifest.name = extension
+            ? displayName.slice(0, -extension.length)
+            : displayName;
+          bundle.manifest.fileName = displayName;
+        }
+        if (overwriteNames.has(conflictKey)) {
+          const matches = findAssetNameConflicts(
+            folderState,
+            tiledAssets,
+            {
+              folderId,
+              displayName: originalName
+            }
+          );
+          for (const existing of matches) {
+            await deleteTiledMapAsset(
+              assetRoot,
+              existing.id
+            );
+            overwrittenTiledAssetIds.push(existing.id);
+          }
+        }
         const asset = await publishTiledMapBundle({
           assetRoot,
           bundle,
-          overwrite: overwriteNames.has(
-            bundle.manifest.name.toLowerCase()
-          )
+          allowDuplicateName: true
         });
+        asset.displayName = asset.fileName;
         assets.push(asset);
         publishedAssetIds.push(asset.id);
       }
+      await updateAssetFolderState(
+        assetRoot,
+        "tiled",
+        (state) => {
+          for (const assetId of overwrittenTiledAssetIds) {
+            delete state.assignments[assetId];
+            delete state.displayNames[assetId];
+          }
+          for (const asset of assets) {
+            if (folderId) {
+              state.assignments[asset.id] = folderId;
+            }
+            state.displayNames[asset.id] = asset.fileName;
+          }
+        }
+      );
       await rm(importDirectory, {
         recursive: true,
         force: true
@@ -542,7 +674,9 @@ async function handleApi(request, response, requestUrl) {
         }).catch(() => {});
       }
       sendJson(response, error.statusCode ?? 400, {
-        error: error.message
+        error: error.message,
+        code: error.code,
+        conflicts: error.conflicts
       });
     }
     return true;
@@ -576,6 +710,132 @@ async function handleApi(request, response, requestUrl) {
     return true;
   }
 
+  if (
+    pathname === "/api/asset-folders" &&
+    request.method === "POST"
+  ) {
+    try {
+      const body = await readRequestBody(request);
+      const folder = await createAssetFolder(assetRoot, {
+        categoryId: body.categoryId,
+        name: body.name,
+        parentId: body.parentId ?? null
+      });
+      sendJson(response, 201, { ok: true, folder });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message
+      });
+    }
+    return true;
+  }
+
+  if (
+    pathname === "/api/asset-folders" &&
+    request.method === "PATCH"
+  ) {
+    try {
+      const body = await readRequestBody(request);
+      const folder = await renameAssetFolder(assetRoot, {
+        categoryId: body.categoryId,
+        folderId: body.folderId,
+        name: body.name
+      });
+      sendJson(response, 200, { ok: true, folder });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message
+      });
+    }
+    return true;
+  }
+
+  if (
+    pathname === "/api/asset-folders" &&
+    request.method === "DELETE"
+  ) {
+    try {
+      const categoryId =
+        requestUrl.searchParams.get("category") ?? "";
+      const folderId =
+        requestUrl.searchParams.get("folderId") ?? "";
+      const deleted = await deleteAssetFolder(assetRoot, {
+        categoryId,
+        folderId,
+        deleteAssetById: async (assetId) => {
+          try {
+            if (categoryId === "tiled") {
+              return await deleteTiledMapAsset(
+                assetRoot,
+                assetId
+              );
+            }
+            const prefix = `${categoryId}:`;
+            const fileName = assetId.startsWith(prefix)
+              ? assetId.slice(prefix.length)
+              : assetId;
+            return await deleteAsset(assetRoot, {
+              categoryId,
+              fileName
+            });
+          } catch (error) {
+            if (error.statusCode === 404) {
+              return null;
+            }
+            throw error;
+          }
+        }
+      });
+      sendJson(response, 200, { ok: true, deleted });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message
+      });
+    }
+    return true;
+  }
+
+  if (pathname === "/api/asset-folders") {
+    sendJson(response, 405, {
+      error: "不支持的文件夹请求"
+    });
+    return true;
+  }
+
+  if (
+    pathname === "/api/asset-clipboard/paste" &&
+    request.method === "POST"
+  ) {
+    try {
+      const body = await readRequestBody(request);
+      const pasted = await pasteClipboardItem(assetRoot, {
+        categoryId: body.categoryId,
+        clipboard: body.clipboard,
+        targetFolderId: body.targetFolderId ?? null,
+        conflictAction: body.conflictAction ?? "",
+        renameTo: body.renameTo ?? ""
+      });
+      sendJson(response, 201, { ok: true, pasted });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message,
+        code: error.code,
+        itemKind: error.itemKind,
+        name: error.itemName,
+        suggestedName: error.suggestedName,
+        conflicts: error.conflicts
+      });
+    }
+    return true;
+  }
+
+  if (pathname === "/api/asset-clipboard/paste") {
+    sendJson(response, 405, {
+      error: "不支持的剪贴板请求"
+    });
+    return true;
+  }
+
   if (pathname === "/api/assets" && request.method === "GET") {
     sendJson(response, 200, await getAssetSnapshot());
     return true;
@@ -587,7 +847,75 @@ async function handleApi(request, response, requestUrl) {
         requestUrl.searchParams.get("category") ?? "";
       const fileName =
         requestUrl.searchParams.get("filename") ?? "";
+      const folderId =
+        requestUrl.searchParams.get("folderId") || null;
+      const requestedDisplayName =
+        requestUrl.searchParams.get("displayName") ||
+        fileName;
+      const conflictAction =
+        requestUrl.searchParams.get("conflictAction") ?? "";
+      const renameTo =
+        requestUrl.searchParams.get("renameTo") ?? "";
       const category = getAssetCategory(categoryId);
+      const folderState = await getAssetFolderState(
+        assetRoot,
+        categoryId
+      );
+      const currentAssets = await listCategoryAssets(categoryId);
+      const conflicts = findAssetNameConflicts(
+        folderState,
+        currentAssets,
+        {
+          folderId,
+          displayName: requestedDisplayName
+        }
+      );
+      if (conflicts.length > 0 && !conflictAction) {
+        const suggestedName = getAvailableAssetName(
+          folderState,
+          currentAssets,
+          { folderId, displayName: requestedDisplayName }
+        );
+        sendJson(response, 409, {
+          ok: false,
+          code: "ASSET_NAME_CONFLICT",
+          itemKind: "asset",
+          name: requestedDisplayName,
+          suggestedName,
+          conflicts: conflicts.map((asset) => ({
+            id: asset.id,
+            name: getAssetDisplayName(asset, folderState)
+          }))
+        });
+        return true;
+      }
+      let displayName = requestedDisplayName;
+      const overwrittenAssetIds = [];
+      if (conflictAction === "rename") {
+        displayName = getAvailableAssetName(
+          folderState,
+          currentAssets,
+          {
+            folderId,
+            displayName: renameTo || requestedDisplayName
+          }
+        );
+      } else if (
+        conflictAction === "overwrite" &&
+        conflicts.length > 0
+      ) {
+        for (const existing of conflicts) {
+          const prefix = `${categoryId}:`;
+          const existingFileName = existing.id.startsWith(prefix)
+            ? existing.id.slice(prefix.length)
+            : existing.fileName;
+          await deleteAsset(assetRoot, {
+            categoryId,
+            fileName: existingFileName
+          });
+          overwrittenAssetIds.push(existing.id);
+        }
+      }
       const content = await readBinaryBody(request);
       const asset = await saveAsset(assetRoot, {
         categoryId,
@@ -595,11 +923,27 @@ async function handleApi(request, response, requestUrl) {
         contentType: request.headers["content-type"],
         content
       });
+      await updateAssetFolderState(
+        assetRoot,
+        categoryId,
+        (state) => {
+          for (const assetId of overwrittenAssetIds) {
+            delete state.assignments[assetId];
+            delete state.displayNames[assetId];
+          }
+          if (folderId) {
+            state.assignments[asset.id] = folderId;
+          }
+          state.displayNames[asset.id] = displayName;
+        }
+      );
 
       sendJson(response, 201, {
         ok: true,
         asset: {
           ...asset,
+          folderId,
+          displayName,
           url: getAssetUrl(asset),
           categoryLabel: category.label
         }
@@ -619,17 +963,36 @@ async function handleApi(request, response, requestUrl) {
       const fileName =
         requestUrl.searchParams.get("filename") ?? "";
       if (categoryId === "tiled") {
+        const assetId =
+          requestUrl.searchParams.get("assetId") ?? "";
         const deleted = await deleteTiledMapAsset(
           assetRoot,
-          requestUrl.searchParams.get("assetId") ?? ""
+          assetId
+        );
+        await updateAssetFolderState(
+          assetRoot,
+          categoryId,
+          (state) => {
+            delete state.assignments[assetId];
+            delete state.displayNames[assetId];
+          }
         );
         sendJson(response, 200, { ok: true, deleted });
         return true;
       }
+      const assetId = `${categoryId}:${fileName}`;
       const deleted = await deleteAsset(assetRoot, {
         categoryId,
         fileName
       });
+      await updateAssetFolderState(
+        assetRoot,
+        categoryId,
+        (state) => {
+          delete state.assignments[assetId];
+          delete state.displayNames[assetId];
+        }
+      );
       sendJson(response, 200, {
         ok: true,
         deleted
@@ -649,20 +1012,36 @@ async function handleApi(request, response, requestUrl) {
       const fileName =
         requestUrl.searchParams.get("filename") ?? "";
       const body = await readRequestBody(request);
-      if (body.action === "rename") {
-        if (categoryId === "tiled") {
-          const renamed = await renameTiledMapAsset(assetRoot, {
-            assetId: body.assetId ?? fileName,
-            newName: body.newFileName
-          });
-          sendJson(response, 200, { ok: true, renamed });
-          return true;
-        }
-        const renamed = await renameAsset(assetRoot, {
+      if (body.action === "move") {
+        const moved = await assignAssetFolder(assetRoot, {
           categoryId,
-          fileName,
-          newFileName: body.newFileName
+          assetId: body.assetId,
+          folderId: body.folderId ?? null
         });
+        sendJson(response, 200, { ok: true, moved });
+        return true;
+      }
+      if (body.action === "rename") {
+        const assetId = String(body.assetId ?? "").trim();
+        const displayName = String(
+          body.displayName ?? ""
+        ).trim();
+        if (!assetId || !displayName) {
+          throw new AssetStorageError(
+            400,
+            "重命名素材 ID 和名称不能为空"
+          );
+        }
+        const currentAssets = await listCategoryAssets(categoryId);
+        const renamed = await renameAssetDisplayName(
+          assetRoot,
+          {
+            categoryId,
+            assetId,
+            displayName,
+            assets: currentAssets
+          }
+        );
         sendJson(response, 200, {
           ok: true,
           renamed

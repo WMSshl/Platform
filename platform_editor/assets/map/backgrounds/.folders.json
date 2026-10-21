@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "folders": [
+    {
+      "id": "4e359aea-2034-49d5-bafb-2aa439e0aa11",
+      "name": "123",
+      "parentId": null,
+      "createdAt": "2026-10-21T10:44:24.400Z"
+    },
+    {
+      "id": "a492a41a-76f4-4220-9c6b-554a424b65de",
+      "name": "1",
+      "parentId": "4e359aea-2034-49d5-bafb-2aa439e0aa11",
+      "createdAt": "2026-10-21T12:15:27.586Z"
+    },
+    {
+      "id": "e7ff6ba0-58e3-49ab-87b9-d557a9e211c1",
+      "name": "2",
+      "parentId": "a492a41a-76f4-4220-9c6b-554a424b65de",
+      "createdAt": "2026-10-21T12:15:35.956Z"
+    },
+    {
+      "id": "096a4e49-83dd-4898-878a-d9bff502322b",
+      "name": "3",
+      "parentId": "e7ff6ba0-58e3-49ab-87b9-d557a9e211c1",
+      "createdAt": "2026-10-21T12:15:43.097Z"
+    }
+  ],
+  "assignments": {
+    "background:demo.png": "a492a41a-76f4-4220-9c6b-554a424b65de",
+    "background:demo-2.png": "4e359aea-2034-49d5-bafb-2aa439e0aa11",
+    "background:demo-3-2-2.png": "a492a41a-76f4-4220-9c6b-554a424b65de",
+    "background:demo-3-2-2-2.png": "e7ff6ba0-58e3-49ab-87b9-d557a9e211c1"
+  },
+  "displayNames": {
+    "background:demo-3-2.png": "demo-3.png",
+    "background:demo-3-3.png": "demo-3-2.pn",
+    "background:demo-4.png": "demo-4.png",
+    "background:demo.png": "demo.png",
+    "background:demo-2.png": "demo.png",
+    "background:demo-3-2-2.png": "demo-3.png",
+    "background:demo-3-2-2-2.png": "demo-3.png"
+  }
+}

@@ -28,13 +28,17 @@ export class TiledMapImportController {
     onStatus,
     onBusyChange,
     onImported,
-    getMaxFileBytes
+    getMaxFileBytes,
+    onResolveConflict,
+    getTargetFolderId
   }) {
     this.onNotify = onNotify;
     this.onStatus = onStatus;
     this.onBusyChange = onBusyChange;
     this.onImported = onImported;
     this.getMaxFileBytes = getMaxFileBytes;
+    this.onResolveConflict = onResolveConflict;
+    this.getTargetFolderId = getTargetFolderId;
     this.folderButton = document.getElementById(
       "upload-tiled-folder"
     );
@@ -336,7 +340,8 @@ export class TiledMapImportController {
       }
 
       let completePayload = {};
-      let overwriteNames = [];
+      const overwriteNames = [];
+      const renameNames = {};
       while (true) {
         const completeResponse = await fetch(
           `/api/tiled-maps/imports/${encodeURIComponent(
@@ -349,7 +354,9 @@ export class TiledMapImportController {
             },
             body: JSON.stringify({
               mapPaths,
-              overwriteNames
+              overwriteNames,
+              renameNames,
+              folderId: this.getTargetFolderId?.() ?? null
             })
           }
         );
@@ -359,20 +366,29 @@ export class TiledMapImportController {
         if (
           completeResponse.status === 409 &&
           completePayload.code === "TILED_NAME_CONFLICT" &&
-          overwriteNames.length === 0
+          overwriteNames.length === 0 &&
+          Object.keys(renameNames).length === 0
         ) {
-          const names = (completePayload.conflicts ?? [])
-            .map((conflict) => conflict.name)
-            .join("、");
-          const overwrite = window.confirm(
-            `素材库中已存在同名 Tiled 地图：${names}\n\n是否覆盖现有素材？`
-          );
-          if (!overwrite) {
-            throw new Error("已取消覆盖同名素材");
+          const conflicts = completePayload.conflicts ?? [];
+          for (const conflict of conflicts) {
+            const decision = await this.onResolveConflict({
+              title: "目标文件夹已有同名 Tiled 背景",
+              description: `“${conflict.name}”已存在，请选择处理方式。`,
+              suggestedName:
+                conflict.suggestedName ?? conflict.name,
+              itemKind: "asset",
+              cancelLabel: "不导入"
+            });
+            if (decision.action === "cancel") {
+              throw new Error("已取消导入同名素材");
+            }
+            if (decision.action === "overwrite") {
+              overwriteNames.push(conflict.name);
+            } else if (decision.action === "rename") {
+              renameNames[conflict.name] =
+                decision.name;
+            }
           }
-          overwriteNames = (
-            completePayload.conflicts ?? []
-          ).map((conflict) => conflict.name);
           continue;
         }
         if (!completeResponse.ok) {
