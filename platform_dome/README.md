@@ -5,7 +5,7 @@
 ## 职责
 只负责消费 contract 数据，不实现编辑能力。
 数据不合预期 → 抛 contract 校验错误，禁止在运行时做兜底兼容。
-共享协议位于工作区的 `platform_contract/`，当前关卡 schema 版本为 `3`。
+共享协议位于工作区的 `platform_contract/`，当前关卡 schema 版本为 `5`。
 运行时只在 loading 阶段执行迁移和校验，玩法热路径不调用 contract。
 
 ## 性能（热路径红线）
@@ -69,6 +69,7 @@ http://127.0.0.1:8081
 - 当前只有一个手动存档位显示在界面上，底层存储接口已经支持多存档位。
 - 地图使用矩形地形与数据驱动的机关对象；独立地图编辑器位于 `platform_editor`，可直接写入本项目关卡目录。
 - 关卡数据由 `platform_contract` 统一定义和校验，编辑器保存时会写入当前 `schemaVersion`。
+- 编辑器已写入可选 `backgroundMusic`；本轮只调整编辑器结构，运行时进入/离开关卡时播放与停止背景音乐留待后续适配。
 - 游戏会读取统一的 `world.background`，按 `type` 预加载单图或 Tiled 背景。
 - Tiled JSON/TMJ 背景使用 Phaser 原生 Tilemap 渲染，并把提取出的矩形碰撞加入
   现有 Arcade 地面/单向平台集合。

@@ -37,6 +37,7 @@ import {
   updateAssetFolderState
 } from "./asset-organization.mjs";
 import { pasteClipboardItem } from "./asset-clipboard-service.mjs";
+import { importAmbientMusicToGame } from "./audio-import.mjs";
 import { importBackgroundToGame } from "./background-import.mjs";
 import {
   buildTiledMapBundle,
@@ -49,7 +50,11 @@ import {
   publishTiledMapBundle,
 } from "./tiled-asset-repository.mjs";
 import {
+  createEmptyContentDocument,
+  hasContentErrors,
   normalizeLevel,
+  normalizeContentDocument,
+  validateContentDocument,
   validateLevel
 } from "../src/contract/index.js";
 
@@ -67,6 +72,8 @@ const gameRoot = resolve(
 );
 const levelDirectory = join(gameRoot, "data", "levels");
 const configDirectory = join(gameRoot, "data", "configs");
+const contentDirectory = join(gameRoot, "data", "content");
+const contentPath = join(contentDirectory, "content.json");
 const manifestPath = join(levelDirectory, "manifest.json");
 const backupsDirectory = join(editorRoot, ".editor-backups");
 const tiledImportsDirectory = join(
@@ -245,6 +252,7 @@ async function getAssetSnapshot() {
       children: group.children.map((category) => ({
         id: category.id,
         label: category.label,
+        kind: category.kind ?? "image",
         group: category.group ?? null,
         allowedExtensions:
           category.allowedExtensions ??
@@ -335,6 +343,28 @@ async function createBackup(levelId) {
     const backupPath = join(
       backupsDirectory,
       `${levelId}-${stamp}.json`
+    );
+    await writeFile(backupPath, existing, "utf8");
+    return backupPath;
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function createContentBackup() {
+  try {
+    const existing = await readFile(contentPath, "utf8");
+    await mkdir(backupsDirectory, { recursive: true });
+    const stamp = new Date()
+      .toISOString()
+      .replaceAll(":", "-")
+      .replaceAll(".", "-");
+    const backupPath = join(
+      backupsDirectory,
+      `content-${stamp}.json`
     );
     await writeFile(backupPath, existing, "utf8");
     return backupPath;
@@ -449,6 +479,32 @@ async function handleApi(request, response, requestUrl) {
   }
 
   if (pathname === "/api/backgrounds/import") {
+    sendJson(response, 405, { error: "不支持的请求方法" });
+    return true;
+  }
+
+  if (
+    pathname === "/api/audio/import" &&
+    request.method === "POST"
+  ) {
+    try {
+      const body = await readRequestBody(request);
+      const music = await importAmbientMusicToGame({
+        assetRoot,
+        gameRoot,
+        assetId: body.assetId
+      });
+      sendJson(response, 200, { ok: true, music });
+    } catch (error) {
+      sendJson(response, error.statusCode ?? 400, {
+        error: error.message,
+        code: error.code
+      });
+    }
+    return true;
+  }
+
+  if (pathname === "/api/audio/import") {
     sendJson(response, 405, { error: "不支持的请求方法" });
     return true;
   }
@@ -1086,6 +1142,48 @@ async function handleApi(request, response, requestUrl) {
     return true;
   }
 
+  if (request.method === "GET" && pathname === "/api/content") {
+    const content = normalizeContentDocument(
+      await readOptionalJson(
+        contentPath,
+        createEmptyContentDocument()
+      )
+    );
+    sendJson(response, 200, {
+      ok: true,
+      content,
+      savedTo: contentPath
+    });
+    return true;
+  }
+
+  if (request.method === "PUT" && pathname === "/api/content") {
+    try {
+      const content = normalizeContentDocument(
+        await readRequestBody(request)
+      );
+      const issues = validateContentDocument(content);
+      if (hasContentErrors(issues)) {
+        const messages = issues
+          .filter((issue) => issue.severity === "error")
+          .map((issue) => issue.message);
+        throw new Error(messages.join("；"));
+      }
+      await mkdir(contentDirectory, { recursive: true });
+      const backupPath = await createContentBackup();
+      await atomicWriteJson(contentPath, content);
+      sendJson(response, 200, {
+        ok: true,
+        content,
+        savedTo: contentPath,
+        backupPath
+      });
+    } catch (error) {
+      sendJson(response, 400, { error: error.message });
+    }
+    return true;
+  }
+
   const levelMatch = pathname.match(/^\/api\/levels\/([a-z0-9-]+)$/);
   if (!levelMatch) {
     return false;
@@ -1150,7 +1248,45 @@ async function handleApi(request, response, requestUrl) {
   return true;
 }
 
-async function serveStatic(response, pathname) {
+function parseByteRange(rangeHeader, size) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(
+    String(rangeHeader ?? "").trim()
+  );
+  if (!match) {
+    return null;
+  }
+  const hasStart = match[1] !== "";
+  const hasEnd = match[2] !== "";
+  if (!hasStart && !hasEnd) {
+    return null;
+  }
+  if (size === 0) {
+    return { invalid: true };
+  }
+  let start;
+  let end;
+  if (!hasStart) {
+    const suffixLength = Number(match[2]);
+    start = Math.max(0, size - suffixLength);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = hasEnd ? Number(match[2]) : size - 1;
+    end = Math.min(end, size - 1);
+  }
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    start >= size ||
+    start > end
+  ) {
+    return { invalid: true };
+  }
+  return { start, end };
+}
+
+async function serveStatic(request, response, pathname) {
   try {
     const decodedPath = decodeURIComponent(
       pathname === "/" ? "/index.html" : pathname
@@ -1193,7 +1329,8 @@ async function serveStatic(response, pathname) {
       "Content-Type":
         mimeTypes[extname(filePath).toLowerCase()] ??
         "application/octet-stream",
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-store",
+      "Accept-Ranges": "bytes"
     };
     if (
       filePath === assetRoot ||
@@ -1202,6 +1339,33 @@ async function serveStatic(response, pathname) {
       headers["X-Content-Type-Options"] = "nosniff";
       headers["Content-Security-Policy"] = "sandbox";
     }
+    const range = parseByteRange(
+      request.headers.range,
+      body.length
+    );
+    if (range?.invalid) {
+      response.writeHead(416, {
+        ...headers,
+        "Content-Range": `bytes */${body.length}`,
+        "Content-Length": "0"
+      });
+      response.end();
+      return;
+    }
+    if (range) {
+      const chunk = body.subarray(
+        range.start,
+        range.end + 1
+      );
+      response.writeHead(206, {
+        ...headers,
+        "Content-Range": `bytes ${range.start}-${range.end}/${body.length}`,
+        "Content-Length": String(chunk.length)
+      });
+      response.end(chunk);
+      return;
+    }
+    headers["Content-Length"] = String(body.length);
     response.writeHead(200, headers);
     response.end(body);
   } catch {
@@ -1225,7 +1389,7 @@ async function handleRequest(request, response) {
       return;
     }
 
-    await serveStatic(response, requestUrl.pathname);
+    await serveStatic(request, response, requestUrl.pathname);
   } catch (error) {
     console.error(error);
     if (!response.headersSent) {
@@ -1253,6 +1417,7 @@ function listenWithFallback(port, remainingAttempts = 10) {
     console.log(`地图编辑器已启动：http://127.0.0.1:${port}`);
     console.log(`游戏项目：${gameRoot}`);
     console.log(`关卡目录：${levelDirectory}`);
+    console.log(`内容目录：${contentDirectory}`);
     console.log("按 Ctrl+C 停止服务器。");
   });
 }

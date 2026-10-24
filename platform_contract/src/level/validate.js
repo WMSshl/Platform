@@ -360,6 +360,102 @@ function checkBounds(issues, level, object, label, selection, rectangle) {
   }
 }
 
+function validateBackgroundMusic(issues, backgroundMusic) {
+  if (backgroundMusic === undefined || backgroundMusic === null) {
+    return;
+  }
+  if (
+    !backgroundMusic ||
+    typeof backgroundMusic !== "object" ||
+    Array.isArray(backgroundMusic)
+  ) {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景音乐必须是对象或 null",
+      { section: "level" }
+    );
+    return;
+  }
+  for (const field of ["id", "path", "fileName", "revision"]) {
+    if (
+      typeof backgroundMusic[field] !== "string" ||
+      !backgroundMusic[field].trim()
+    ) {
+      pushIssue(
+        issues,
+        "error",
+        `关卡背景音乐 ${field} 不能为空`,
+        { section: "level" }
+      );
+    }
+  }
+  if (!isSafeAssetPath(backgroundMusic.path)) {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景音乐 path 必须是安全的项目相对路径",
+      { section: "level" }
+    );
+  } else if (!/\.(wav|ogg|mp3)$/i.test(backgroundMusic.path)) {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景音乐必须是 WAV、OGG 或 MP3",
+      { section: "level" }
+    );
+  }
+  for (const field of [
+    "displayName",
+    "mimeType",
+    "folderPath"
+  ]) {
+    if (
+      backgroundMusic[field] !== undefined &&
+      typeof backgroundMusic[field] !== "string"
+    ) {
+      pushIssue(
+        issues,
+        "error",
+        `关卡背景音乐 ${field} 必须是字符串`,
+        { section: "level" }
+      );
+    }
+  }
+  if (
+    backgroundMusic.folderId !== undefined &&
+    backgroundMusic.folderId !== null &&
+    typeof backgroundMusic.folderId !== "string"
+  ) {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景音乐 folderId 必须是字符串或 null",
+      { section: "level" }
+    );
+  }
+  if (
+    !isFiniteNumber(backgroundMusic.volume) ||
+    Number(backgroundMusic.volume) < 0 ||
+    Number(backgroundMusic.volume) > 1
+  ) {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景音乐 volume 必须是 0–1 的数字",
+      { section: "level" }
+    );
+  }
+  if (typeof backgroundMusic.loop !== "boolean") {
+    pushIssue(
+      issues,
+      "error",
+      "关卡背景音乐 loop 必须是布尔值",
+      { section: "level" }
+    );
+  }
+}
+
 export function validateLevel(
   level,
   {
@@ -460,6 +556,7 @@ export function validateLevel(
       validateTiledBackground(issues, background);
     }
   }
+  validateBackgroundMusic(issues, level.backgroundMusic);
 
   if (!Array.isArray(level.spawnPoints) || level.spawnPoints.length === 0) {
     pushIssue(

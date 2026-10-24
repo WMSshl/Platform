@@ -235,6 +235,7 @@ export class Inspector {
   buildLevelFields(level) {
     const camera = level.camera ?? {};
     const background = level.world.background;
+    const backgroundMusic = level.backgroundMusic;
     const basic = [
       field({
         label: "关卡 ID",
@@ -310,8 +311,7 @@ export class Inspector {
         <label>
           <span>背景素材</span>
           <span class="field-note">图片与 Tiled 地图均随世界尺寸铺满</span>
-        </label>
-        ${
+        </label>        ${
           background?.type === "image"
             ? `
               <div class="background-asset-current">
@@ -407,9 +407,122 @@ export class Inspector {
       </div>
     `;
 
+    const musicVolumePercent = backgroundMusic
+      ? Math.round(
+          Math.min(
+            1,
+            Math.max(0, Number(backgroundMusic.volume) || 0)
+          ) * 100
+        )
+      : 0;
+    const musicFields = `
+      <div class="field is-wide background-asset-field level-music-field">
+        <label>
+          <span>背景音乐</span>
+          <span class="field-note">进入关卡后循环播放，离开关卡时停止</span>
+        </label>
+        ${
+          backgroundMusic
+            ? `
+              <div class="background-asset-current level-music-current">
+                <span class="background-asset-preview level-music-preview">
+                  <span class="level-music-glyph" aria-hidden="true">♪</span>
+                </span>
+                <span class="background-asset-copy">
+                  <strong>${escapeHtml(
+                    backgroundMusic.displayName ||
+                      backgroundMusic.fileName
+                  )}</strong>
+                  <small>${escapeHtml(
+                    backgroundMusic.folderPath || "未归档"
+                  )}</small>
+                  <small>${escapeHtml(
+                    backgroundMusic.path
+                  )}</small>
+                </span>
+              </div>
+              <div class="level-music-controls">
+                <label class="level-music-volume">
+                  <span class="level-music-volume-label">
+                    <span>音量</span>
+                    <output data-level-music-volume-output>
+                      ${musicVolumePercent}%
+                    </output>
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value="${musicVolumePercent}"
+                    data-level-music-volume
+                  />
+                </label>
+                <label class="level-music-loop">
+                  <input
+                    type="checkbox"
+                    data-level-music-loop
+                    ${backgroundMusic.loop !== false ? "checked" : ""}
+                  />
+                  <span>
+                    循环播放
+                    <small>关卡音乐默认循环</small>
+                  </span>
+                </label>
+              </div>
+            `
+            : `
+              <div class="background-asset-empty">
+                尚未导入背景音乐，进入关卡时不会播放音乐。
+              </div>
+            `
+        }
+        <div class="background-asset-actions">
+          ${
+            backgroundMusic
+              ? `
+                <button
+                  class="button button-quiet"
+                  type="button"
+                  data-action="preview-background-music"
+                >
+                  试听
+                </button>
+              `
+              : ""
+          }
+          <button
+            class="button button-quiet"
+            type="button"
+            data-action="import-background-music"
+          >
+            ${
+              backgroundMusic
+                ? "更换音乐"
+                : "从素材库导入音乐"
+            }
+          </button>
+          ${
+            backgroundMusic
+              ? `
+                <button
+                  class="text-button"
+                  type="button"
+                  data-action="clear-background-music"
+                >
+                  移除音乐
+                </button>
+              `
+              : ""
+          }
+        </div>
+      </div>
+    `;
+
     return [
       section("关卡基础", basic),
       section("关卡背景", backgroundFields),
+      section("关卡音乐", musicFields),
       section("镜头参数", cameraFields),
       section(
         "初始出生点",

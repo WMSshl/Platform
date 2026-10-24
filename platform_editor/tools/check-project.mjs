@@ -3,6 +3,11 @@ import { extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { normalizeLevel } from "../src/model/LevelModel.js";
+import {
+  CONTENT_MODULES,
+  normalizeContentDocument,
+  validateContentDocument
+} from "../src/model/ContentModel.js";
 import { validateLevel } from "../src/model/Validation.js";
 
 const projectRoot = resolve(
@@ -72,6 +77,9 @@ async function readJson(relativePath) {
 
 const actors = await readJson("data/configs/actors.json");
 const items = await readJson("data/configs/items.json");
+const contentSource = await readJson(
+  "data/content/content.json"
+);
 const levelFiles = (
   await collectFiles(join(projectRoot, "data", "levels"), [".json"])
 ).filter((file) => !file.endsWith("manifest.json"));
@@ -109,6 +117,23 @@ if (actors && items) {
   }
 }
 
+let contentEntryCount = 0;
+if (contentSource) {
+  try {
+    const content = normalizeContentDocument(contentSource);
+    for (const definition of CONTENT_MODULES) {
+      contentEntryCount += content[definition.key].length;
+    }
+    for (const issue of validateContentDocument(content)) {
+      if (issue.severity === "error") {
+        errors.push(`内容文档：${issue.message}`);
+      }
+    }
+  } catch (error) {
+    errors.push(`内容文档错误：${error.message}`);
+  }
+}
+
 if (errors.length > 0) {
   console.error("项目检查未通过：");
   for (const error of errors) {
@@ -117,6 +142,6 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `项目检查通过：${levels.length} 个关卡，关卡结构与关键引用正常。`
+    `项目检查通过：${levels.length} 个关卡，${contentEntryCount} 个内容项，结构与关键引用正常。`
   );
 }

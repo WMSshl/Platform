@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "folders": [
+    {
+      "id": "4c1fedf9-57d6-4c5b-a7a1-cd72b2f68797",
+      "name": "1",
+      "parentId": null,
+      "createdAt": "2026-10-24T09:59:27.017Z"
+    }
+  ],
+  "assignments": {},
+  "displayNames": {
+    "sfx:mixkit-arrow-whoosh-1491.wav": "mixkit-arrow-whoosh-1491.wav",
+    "sfx:mixkit-boxing-punch-2051.wav": "mixkit-boxing-punch-2051.wav"
+  }
+}

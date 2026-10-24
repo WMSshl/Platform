@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 5,
   "id": "level-001",
   "name": "低语庭院",
   "world": {
@@ -21,6 +21,18 @@
     "lerpY": 0.12,
     "deadzoneWidth": 180,
     "deadzoneHeight": 110
+  },
+  "backgroundMusic": {
+    "id": "audio/ambient/mixkit-secret-garden-595.mp3",
+    "path": "assets/audio/ambient/mixkit-secret-garden-595.mp3",
+    "fileName": "mixkit-secret-garden-595.mp3",
+    "mimeType": "audio/mpeg",
+    "revision": "2026-10-24T10:43:08.754Z",
+    "displayName": "mixkit-secret-garden-595.mp3",
+    "folderId": null,
+    "folderPath": "",
+    "volume": 0.61,
+    "loop": true
   },
   "spawnPoints": [
     {

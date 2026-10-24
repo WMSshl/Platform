@@ -17,9 +17,38 @@ export const ASSET_MIME_TYPES = {
   ".gif": "image/gif",
   ".jpeg": "image/jpeg",
   ".jpg": "image/jpeg",
+  ".mp3": "audio/mpeg",
+  ".ogg": "audio/ogg",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".wav": "audio/wav",
   ".webp": "image/webp"
+};
+
+const IMAGE_EXTENSIONS = [
+  ".gif",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".svg",
+  ".webp"
+];
+
+const ASSET_MIME_ALIASES = {
+  ".mp3": [
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/x-mp3",
+    "audio/mpeg3",
+    "audio/x-mpeg-3"
+  ],
+  ".ogg": ["audio/ogg", "application/ogg", "audio/vorbis"],
+  ".wav": [
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/vnd.wave"
+  ]
 };
 
 export const ASSET_CATEGORIES = [
@@ -31,6 +60,7 @@ export const ASSET_CATEGORIES = [
         id: "background",
         label: "静态背景",
         storageSegments: ["map", "backgrounds"],
+        allowedExtensions: IMAGE_EXTENSIONS,
         group: {
           id: "level-background",
           label: "关卡背景"
@@ -39,7 +69,8 @@ export const ASSET_CATEGORIES = [
       {
         id: "entity",
         label: "动画",
-        storageSegments: ["map", "entities"]
+        storageSegments: ["map", "entities"],
+        allowedExtensions: IMAGE_EXTENSIONS
       },
       {
         id: "static",
@@ -56,6 +87,26 @@ export const ASSET_CATEGORIES = [
           id: "level-background",
           label: "关卡背景"
         }
+      }
+    ]
+  },
+  {
+    id: "audio",
+    label: "音效",
+    children: [
+      {
+        id: "sfx",
+        label: "短音效",
+        kind: "audio",
+        storageSegments: ["audio", "sfx"],
+        allowedExtensions: [".wav", ".ogg", ".mp3"]
+      },
+      {
+        id: "ambient",
+        label: "环境音",
+        kind: "audio",
+        storageSegments: ["audio", "ambient"],
+        allowedExtensions: [".wav", ".ogg", ".mp3"]
       }
     ]
   }
@@ -97,7 +148,7 @@ export function normalizeAssetFileName(rawName) {
   if (!source || !ASSET_MIME_TYPES[extension]) {
     throw new AssetStorageError(
       400,
-      "仅支持 PNG、JPG、WebP、GIF 和 SVG 图片"
+      "仅支持图片或音频素材"
     );
   }
 
@@ -121,13 +172,15 @@ export function validateAssetContentType(fileName, contentType) {
     .split(";")[0]
     .trim()
     .toLowerCase();
-  const expectedType =
-    ASSET_MIME_TYPES[extname(fileName).toLowerCase()];
+  const extension = extname(fileName).toLowerCase();
+  const expectedType = ASSET_MIME_TYPES[extension];
+  const acceptedTypes =
+    ASSET_MIME_ALIASES[extension] ?? [expectedType];
 
   if (
     normalizedType &&
     normalizedType !== "application/octet-stream" &&
-    normalizedType !== expectedType
+    !acceptedTypes.includes(normalizedType)
   ) {
     throw new AssetStorageError(
       400,
@@ -193,17 +246,20 @@ function normalizeFrameRate(value, fallback = 8) {
 }
 
 function validateCategoryExtension(category, fileName) {
-  if (!category.allowedExtensions?.length) {
-    return;
-  }
+  const allowedExtensions =
+    category.allowedExtensions?.length
+      ? category.allowedExtensions
+      : IMAGE_EXTENSIONS;
   const extension = extname(fileName).toLowerCase();
-  if (!category.allowedExtensions.includes(extension)) {
-    const formats = category.allowedExtensions
+  if (!allowedExtensions.includes(extension)) {
+    const formats = allowedExtensions
       .map((item) => item.slice(1).toUpperCase())
       .join("、");
+    const noun =
+      category.kind === "audio" ? "音频文件" : "图片";
     throw new AssetStorageError(
       400,
-      `${category.label}分类仅支持 ${formats} 图片`
+      `${category.label}分类仅支持 ${formats} ${noun}`
     );
   }
 }
@@ -261,7 +317,6 @@ export async function saveAsset(
       "单个素材不能超过 20 MB"
     );
   }
-
   const directory = join(
     assetRoot,
     ...category.storageSegments
@@ -439,7 +494,11 @@ export async function listAssets(assetRoot, categoryId) {
       frameRate: isAnimation
         ? normalizeFrameRate(metadata.frameRate)
         : null,
-      isSpriteSheet: frameCount > 1
+      isSpriteSheet: frameCount > 1,
+      audioFormat:
+        category.kind === "audio"
+          ? extension.slice(1).toUpperCase()
+          : null
     });
   }
 

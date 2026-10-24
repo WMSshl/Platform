@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "folders": [
+    {
+      "id": "7484a5ce-facc-46a5-bf12-24bba9913994",
+      "name": "1",
+      "parentId": null,
+      "createdAt": "2026-10-24T04:50:43.208Z"
+    }
+  ],
+  "assignments": {
+    "entity:后跑.png": "7484a5ce-facc-46a5-bf12-24bba9913994"
+  },
+  "displayNames": {
+    "entity:后跑.png": "后跑.png"
+  }
+}

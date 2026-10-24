@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 14,
+  "idCounters": {
+    "conversations": 0,
+    "quests": 0,
+    "items": 0,
+    "animations": 0,
+    "characters": 1
+  },
+  "folderIdCounters": {
+    "conversations": 0,
+    "quests": 0,
+    "items": 0,
+    "animations": 0,
+    "characters": 0
+  },
+  "contentFolders": {
+    "conversations": [],
+    "quests": [],
+    "items": [],
+    "animations": [],
+    "characters": []
+  },
+  "itemTypeLibrary": {
+    "primaryTypes": [],
+    "rarities": []
+  },
+  "recentConversationIds": [],
+  "conversations": [],
+  "quests": [],
+  "items": [],
+  "animations": [],
+  "characters": [
+    {
+      "id": "04-0001",
+      "name": "新角色",
+      "description": "",
+      "attributes": {
+        "maxHealth": 0,
+        "defense": 0,
+        "invincibilityFrames": 0,
+        "healthRegenPerSecond": 0,
+        "attackHealthRecovery": 0,
+        "hitHealthRecovery": 0,
+        "lifestealRate": 0,
+        "moveSpeed": 0,
+        "jumpHeight": 0,
+        "jumpCount": 0,
+        "dashSpeed": 0,
+        "dashDamage": 0,
+        "rollInvincibilityFrames": 0,
+        "rollDistance": 0,
+        "fallSpeed": 0
+      },
+      "animationBindings": [
+        {
+          "id": "04-0001-animation-0001",
+          "type": "move",
+          "source": {
+            "assetId": "entity:后跑.png",
+            "fileName": "后跑.png",
+            "relativePath": "map/entities/后跑.png",
+            "url": "/assets/map/entities/%E5%90%8E%E8%B7%91.png",
+            "folderId": "7484a5ce-facc-46a5-bf12-24bba9913994",
+            "folderPath": "1",
+            "imageWidth": 4096,
+            "imageHeight": 512,
+            "frameWidth": 512,
+            "frameHeight": 512,
+            "frameCount": 8,
+            "contentBounds": {
+              "x": 0,
+              "y": 0,
+              "width": 512,
+              "height": 512
+            }
+          },
+          "direction": "right",
+          "frameRate": 11,
+          "attackFrame": 1,
+          "attackRange": null,
+          "frameSound": null,
+          "triggers": []
+        }
+      ],
+      "folderId": null
+    }
+  ]
+}

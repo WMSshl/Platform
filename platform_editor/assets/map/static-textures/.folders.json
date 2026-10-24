@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "folders": [
+    {
+      "id": "d501540e-281f-49c5-b037-923ac6d90d24",
+      "name": "1",
+      "parentId": null,
+      "createdAt": "2026-10-24T05:12:30.405Z"
+    }
+  ],
+  "assignments": {
+    "static:tree_dead.png": "d501540e-281f-49c5-b037-923ac6d90d24",
+    "static:tree.png": "d501540e-281f-49c5-b037-923ac6d90d24"
+  },
+  "displayNames": {
+    "static:tree_dead.png": "tree_dead.png",
+    "static:tree.png": "tree.png"
+  }
+}

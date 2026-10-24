@@ -47,6 +47,18 @@ const CATEGORY_META = {
     groupLabel: "关卡背景",
     label: "Tiled 背景",
     allowedExtensions: TILED_EXTENSIONS
+  },
+  sfx: {
+    groupLabel: "音效",
+    label: "短音效",
+    kind: "audio",
+    allowedExtensions: [".wav", ".ogg", ".mp3"]
+  },
+  ambient: {
+    groupLabel: "音效",
+    label: "环境音",
+    kind: "audio",
+    allowedExtensions: [".wav", ".ogg", ".mp3"]
   }
 };
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -108,6 +120,34 @@ function usesNativeImagePreview(asset) {
     asset.mimeType === "image/gif" ||
     asset.mimeType === "image/svg+xml"
   );
+}
+
+function isAudioAsset(asset) {
+  return String(asset?.mimeType ?? "").startsWith("audio/");
+}
+
+function formatAudioTime(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "0:00";
+  }
+  const total = Math.floor(seconds);
+  return `${Math.floor(total / 60)}:${String(
+    total % 60
+  ).padStart(2, "0")}`;
+}
+
+function getAudioFormatLabel(asset) {
+  if (asset?.audioFormat) {
+    return asset.audioFormat;
+  }
+  const extension = String(asset?.fileName ?? "")
+    .split(".")
+    .at(-1)
+    ?.toUpperCase();
+  return ["WAV", "OGG", "MP3"].includes(extension)
+    ? extension
+    : "音频";
 }
 
 export class AssetLibrary {
@@ -201,6 +241,34 @@ export class AssetLibrary {
     this.viewerSprite = document.getElementById(
       "asset-viewer-sprite"
     );
+    this.viewerAudio = document.getElementById(
+      "asset-viewer-audio"
+    );
+    this.audioPlayer = document.getElementById(
+      "asset-audio-player"
+    );
+    this.audioPlayButton = document.getElementById(
+      "asset-audio-play"
+    );
+    this.audioSeek = document.getElementById("asset-audio-seek");
+    this.audioCurrent = document.getElementById(
+      "asset-audio-current"
+    );
+    this.audioDuration = document.getElementById(
+      "asset-audio-duration"
+    );
+    this.audioRewind = document.getElementById(
+      "asset-audio-rewind"
+    );
+    this.audioForward = document.getElementById(
+      "asset-audio-forward"
+    );
+    this.audioMute = document.getElementById(
+      "asset-audio-mute"
+    );
+    this.audioVolume = document.getElementById(
+      "asset-audio-volume"
+    );
     this.viewerZoom = document.getElementById(
       "asset-viewer-zoom"
     );
@@ -292,6 +360,10 @@ export class AssetLibrary {
     this.panPointerId = null;
     this.panStart = null;
     this.animators = new Set();
+    this.previewAudio = null;
+    this.previewAudioAsset = null;
+    this.audioSeeking = false;
+    this.audioResume = null;
     this.previewGeneration = 0;
     this.viewerSpriteAnimator = null;
     this.frameRatePreviewAnimator = null;
@@ -338,6 +410,7 @@ export class AssetLibrary {
       this.resolveNameConflict({ action: "cancel" });
       this.cancelRename({ rerender: false });
       this.stopPreviewAnimators();
+      this.stopAudioPreview();
     });
     this.dialog.addEventListener("pointerdown", (event) => {
       if (
@@ -484,6 +557,15 @@ export class AssetLibrary {
       }
     });
     this.grid.addEventListener("click", (event) => {
+      const audioButton = event.target.closest(
+        "[data-audio-play]"
+      );
+      if (audioButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.toggleAudioPreview(audioButton);
+        return;
+      }
       const folderCard = event.target.closest(
         "[data-asset-folder-id]"
       );
@@ -733,7 +815,10 @@ export class AssetLibrary {
     this.viewerCanvas.addEventListener(
       "wheel",
       (event) => {
-        if (!this.viewerOpen) {
+        if (
+          !this.viewerOpen ||
+          isAudioAsset(this.viewerAsset)
+        ) {
           return;
         }
         event.preventDefault();
@@ -747,7 +832,11 @@ export class AssetLibrary {
       { passive: false }
     );
     this.viewerCanvas.addEventListener("pointerdown", (event) => {
-      if (!this.viewerOpen || event.button !== 0) {
+      if (
+        !this.viewerOpen ||
+        event.button !== 0 ||
+        isAudioAsset(this.viewerAsset)
+      ) {
         return;
       }
       event.preventDefault();
@@ -796,9 +885,61 @@ export class AssetLibrary {
       "pointercancel",
       finishPan
     );
-    this.viewerCanvas.addEventListener("dblclick", () =>
-      this.resetViewer()
+    this.viewerCanvas.addEventListener("dblclick", () => {
+      if (!isAudioAsset(this.viewerAsset)) {
+        this.resetViewer();
+      }
+    });
+    this.audioPlayButton.addEventListener("click", () =>
+      this.toggleViewerAudio()
     );
+    this.audioRewind.addEventListener("click", () =>
+      this.seekViewerAudioBy(-10)
+    );
+    this.audioForward.addEventListener("click", () =>
+      this.seekViewerAudioBy(10)
+    );
+    this.audioMute.addEventListener("click", () =>
+      this.toggleViewerAudioMute()
+    );
+    this.audioSeek.addEventListener("input", () =>
+      this.handleViewerAudioSeek()
+    );
+    this.audioSeek.addEventListener("pointerdown", () => {
+      this.audioSeeking = true;
+    });
+    this.audioSeek.addEventListener("pointerup", () => {
+      this.audioSeeking = false;
+      this.syncViewerAudioState();
+    });
+    this.audioSeek.addEventListener("pointercancel", () => {
+      this.audioSeeking = false;
+    });
+    this.audioSeek.addEventListener("change", () => {
+      this.audioSeeking = false;
+      this.syncViewerAudioState();
+    });
+    this.audioVolume.addEventListener("input", () => {
+      this.viewerAudio.volume = Number(this.audioVolume.value) || 0;
+      this.viewerAudio.muted = false;
+      this.syncViewerAudioState();
+    });
+    this.viewerAudio.addEventListener("loadedmetadata", () => {
+      this.applyAudioResume();
+      this.syncViewerAudioState();
+    });
+    this.viewerAudio.addEventListener("timeupdate", () => {
+      this.syncViewerAudioState();
+    });
+    this.viewerAudio.addEventListener("play", () => {
+      this.syncViewerAudioState();
+    });
+    this.viewerAudio.addEventListener("pause", () => {
+      this.syncViewerAudioState();
+    });
+    this.viewerAudio.addEventListener("ended", () => {
+      this.syncViewerAudioState();
+    });
     window.addEventListener("resize", () =>
       this.closeContextMenu()
     );
@@ -834,12 +975,15 @@ export class AssetLibrary {
     this.syncUploadConstraints();
     this.render();
     const count = this.assets[categoryId]?.length ?? 0;
+    const meta = this.getActiveCategoryMeta();
     this.setStatus(
       count > 0
         ? `当前分类有 ${count} 个素材。`
         : categoryId === "tiled"
           ? "当前分类还没有素材，可导入包含 JSON/TMJ、TSX 与图片的文件夹。"
-          : "当前分类还没有素材，可以拖入图片或点击上传。"
+          : meta?.kind === "audio"
+            ? "当前分类还没有音效，可以拖入音频文件或点击上传。"
+            : "当前分类还没有素材，可以拖入图片或点击上传。"
     );
   }
 
@@ -854,9 +998,12 @@ export class AssetLibrary {
     this.refreshButton.disabled = busy;
     this.uploadButton.disabled =
       busy || !this.apiAvailable || this.isLoading;
+    const meta = this.getActiveCategoryMeta();
     this.uploadButton.textContent = this.isUploading
       ? "正在上传…"
-      : "上传素材";
+      : meta?.kind === "audio"
+        ? "上传音效"
+        : "上传素材";
     this.tiledImporter.setBusy(this.isUploading);
     this.tiledImporter.setAvailability(this.apiAvailable);
   }
@@ -873,6 +1020,7 @@ export class AssetLibrary {
     const extensions =
       meta?.allowedExtensions ?? ALL_IMAGE_EXTENSIONS;
     const isTiledMap = this.activeCategory === "tiled";
+    const isAudio = meta?.kind === "audio";
     this.uploadButton.hidden = isTiledMap;
     this.tiledImporter.setVisible(isTiledMap);
     this.fileInput.accept = extensions.join(",");
@@ -882,9 +1030,15 @@ export class AssetLibrary {
           ? `文件夹导入支持 JSON/TMJ、TSX 与图片 · 单个不超过 ${formatBytes(
               this.maxFileBytes
             )}`
-          : `支持 ${formatExtensionLabel(extensions)} · 单个不超过 ${formatBytes(
-              this.maxFileBytes
-            )}`;
+          : isAudio
+            ? `支持 WAV、OGG、MP3 · 单个不超过 ${formatBytes(
+                this.maxFileBytes
+              )}`
+            : `支持 ${formatExtensionLabel(
+                extensions
+              )} 图片 · 单个不超过 ${formatBytes(
+                this.maxFileBytes
+              )}`;
     }
   }
 
@@ -968,6 +1122,97 @@ export class AssetLibrary {
           ? asset.id
           : asset.fileName) === card.dataset.assetFile
     );
+  }
+
+  toggleAudioPreview(button) {
+    const asset = (this.assets[this.activeCategory] ?? []).find(
+      (candidate) => candidate.id === button.dataset.audioPlay
+    );
+    if (!asset) {
+      return;
+    }
+    if (
+      this.previewAudio &&
+      this.previewAudioAsset?.id === asset.id
+    ) {
+      if (this.previewAudio.paused) {
+        this.previewAudio.play().catch((error) => {
+          this.setStatus(`试听失败：${error.message}`, true);
+        });
+      } else {
+        this.previewAudio.pause();
+      }
+      this.syncAudioPreviewButtons();
+      return;
+    }
+    this.stopAudioPreview();
+    this.previewAudio = new Audio(asset.url);
+    this.previewAudioAsset = asset;
+    this.previewAudio.addEventListener("play", () => {
+      this.syncAudioPreviewButtons();
+    });
+    this.previewAudio.addEventListener("pause", () => {
+      this.syncAudioPreviewButtons();
+    });
+    this.previewAudio.addEventListener("ended", () => {
+      this.syncAudioPreviewButtons();
+    });
+    this.previewAudio
+      .play()
+      .catch((error) =>
+        this.setStatus(`试听失败：${error.message}`, true)
+      );
+    this.syncAudioPreviewButtons();
+  }
+
+  syncAudioPreviewButtons() {
+    for (const button of this.grid.querySelectorAll(
+      "[data-audio-play]"
+    )) {
+      const playing =
+        this.previewAudioAsset?.id === button.dataset.audioPlay &&
+        this.previewAudio &&
+        !this.previewAudio.paused;
+      button.classList.toggle("is-playing", Boolean(playing));
+      button.setAttribute(
+        "aria-label",
+        playing ? "暂停试听" : "试听"
+      );
+      button.title = playing ? "暂停" : "试听";
+    }
+  }
+
+  stopAudioPreview() {
+    if (this.previewAudio) {
+      this.previewAudio.pause();
+      this.previewAudio.removeAttribute("src");
+      this.previewAudio.load();
+    }
+    this.previewAudio = null;
+    this.previewAudioAsset = null;
+    this.syncAudioPreviewButtons();
+  }
+
+  applyAudioResume() {
+    if (!this.audioResume) {
+      return;
+    }
+    const { time, play } = this.audioResume;
+    this.audioResume = null;
+    if (Number.isFinite(this.viewerAudio.duration)) {
+      this.viewerAudio.currentTime = Math.min(
+        Math.max(0, time),
+        this.viewerAudio.duration
+      );
+    }
+    if (play) {
+      this.viewerAudio.play().catch((error) => {
+        this.setStatus(
+          `继续播放失败：${error.message}`,
+          true
+        );
+      });
+    }
   }
 
   setContextActions(visibleActions) {
@@ -1732,6 +1977,109 @@ export class AssetLibrary {
     }
   }
 
+  toggleViewerAudio() {
+    if (!isAudioAsset(this.viewerAsset)) {
+      return;
+    }
+    if (this.viewerAudio.paused) {
+      this.viewerAudio.play().catch((error) => {
+        this.setStatus(`播放失败：${error.message}`, true);
+      });
+    } else {
+      this.viewerAudio.pause();
+    }
+  }
+
+  seekViewerAudioBy(seconds) {
+    if (
+      !isAudioAsset(this.viewerAsset) ||
+      !Number.isFinite(this.viewerAudio.duration)
+    ) {
+      return;
+    }
+    this.viewerAudio.currentTime = Math.min(
+      this.viewerAudio.duration,
+      Math.max(0, this.viewerAudio.currentTime + seconds)
+    );
+    this.syncViewerAudioState();
+  }
+
+  handleViewerAudioSeek() {
+    if (!isAudioAsset(this.viewerAsset)) {
+      return;
+    }
+    this.audioSeeking = true;
+    const value = Number(this.audioSeek.value);
+    if (Number.isFinite(value)) {
+      this.viewerAudio.currentTime = value;
+      this.audioCurrent.textContent = formatAudioTime(value);
+    }
+  }
+
+  toggleViewerAudioMute() {
+    if (!isAudioAsset(this.viewerAsset)) {
+      return;
+    }
+    this.viewerAudio.muted = !this.viewerAudio.muted;
+    this.syncViewerAudioState();
+  }
+
+  syncViewerAudioState() {
+    if (!this.audioPlayer || this.audioPlayer.hidden) {
+      return;
+    }
+    const duration = Number.isFinite(this.viewerAudio.duration)
+      ? this.viewerAudio.duration
+      : 0;
+    const current = Number.isFinite(this.viewerAudio.currentTime)
+      ? this.viewerAudio.currentTime
+      : 0;
+    this.audioDuration.textContent = formatAudioTime(duration);
+    this.audioCurrent.textContent = formatAudioTime(current);
+    if (!this.audioSeeking) {
+      this.audioSeek.max = String(duration);
+      this.audioSeek.value = String(
+        Math.min(current, duration)
+      );
+    }
+    const playing =
+      !this.viewerAudio.paused && !this.viewerAudio.ended;
+    this.audioPlayButton.classList.toggle(
+      "is-playing",
+      playing
+    );
+    this.audioPlayButton.setAttribute(
+      "aria-label",
+      playing ? "暂停" : "播放"
+    );
+    this.audioMute.textContent = this.viewerAudio.muted
+      ? "取消静音"
+      : "静音";
+    this.audioMute.setAttribute(
+      "aria-pressed",
+      String(this.viewerAudio.muted)
+    );
+    this.audioVolume.value = String(
+      this.viewerAudio.muted ? 0 : this.viewerAudio.volume
+    );
+  }
+
+  resetViewerAudio() {
+    this.audioSeeking = false;
+    this.viewerAudio.pause();
+    this.viewerAudio.muted = false;
+    this.viewerAudio.volume = 0.8;
+    this.audioVolume.value = "0.8";
+    this.audioSeek.max = "0";
+    this.audioSeek.value = "0";
+    this.audioCurrent.textContent = "0:00";
+    this.audioDuration.textContent = "0:00";
+    this.audioPlayButton.classList.remove("is-playing");
+    this.audioPlayButton.setAttribute("aria-label", "播放");
+    this.audioMute.textContent = "静音";
+    this.audioMute.setAttribute("aria-pressed", "false");
+  }
+
   openViewer(asset) {
     this.closeContextMenu();
     this.viewerGeneration += 1;
@@ -1740,11 +2088,66 @@ export class AssetLibrary {
     this.viewerSpriteAnimator = null;
     this.viewerAsset = asset;
     this.viewerOpen = true;
+    const resumePreviewAudio =
+      isAudioAsset(asset) &&
+      this.previewAudio &&
+      !this.previewAudio.paused &&
+      this.previewAudioAsset?.id === asset.id;
+    const previewAudioTime = resumePreviewAudio
+      ? this.previewAudio.currentTime
+      : 0;
+    this.audioResume = null;
+    this.stopAudioPreview();
     this.viewerName.textContent =
       getAssetDisplayName(asset);
     this.viewerImage.hidden = true;
     this.viewerTiled.hidden = true;
     this.viewerSprite.hidden = true;
+    this.audioPlayer.hidden = true;
+    this.resetViewerAudio();
+    this.viewerAudio.pause();
+    this.viewerAudio.removeAttribute("src");
+    this.viewerAudio.hidden = true;
+    this.viewer.classList.toggle(
+      "is-audio",
+      isAudioAsset(asset)
+    );
+    if (isAudioAsset(asset)) {
+      this.viewerMeta.textContent = `${
+        this.categoryMeta[asset.categoryId]?.label ?? "音效"
+      } · ${getAudioFormatLabel(asset)} · ${formatBytes(
+        asset.size
+      )} · 拖动进度条定位`;
+      this.viewerImage.removeAttribute("src");
+      this.audioResume = resumePreviewAudio
+        ? { time: previewAudioTime, play: true }
+        : null;
+      this.viewerAudio.src = asset.url;
+      this.viewerAudio.load();
+      if (resumePreviewAudio) {
+        this.viewerAudio.play().catch((error) => {
+          this.setStatus(
+            `继续播放失败：${error.message}`,
+            true
+          );
+        });
+      }
+      this.viewerAudio.hidden = true;
+      this.audioPlayer.hidden = false;
+      this.viewer.hidden = false;
+      this.viewerZoom.hidden = true;
+      this.viewerZoomIn.hidden = true;
+      this.viewerZoomOut.hidden = true;
+      this.viewerFit.hidden = true;
+      requestAnimationFrame(() =>
+        this.closeViewerButton.focus({ preventScroll: true })
+      );
+      return;
+    }
+    this.viewerZoom.hidden = false;
+    this.viewerZoomIn.hidden = false;
+    this.viewerZoomOut.hidden = false;
+    this.viewerFit.hidden = false;
     if (asset.categoryId === "tiled") {
       this.viewerMeta.textContent =
         `Tiled JSON · ${asset.sourceWidth} × ${asset.sourceHeight} · ` +
@@ -1841,6 +2244,16 @@ export class AssetLibrary {
     delete this.viewerTiled.dataset.previewError;
     this.viewerSprite.hidden = true;
     this.viewerImage.hidden = false;
+    this.audioPlayer.hidden = true;
+    this.resetViewerAudio();
+    this.viewerAudio.removeAttribute("src");
+    this.viewerAudio.load();
+    this.viewerAudio.hidden = true;
+    this.viewer.classList.remove("is-audio");
+    this.viewerZoom.hidden = false;
+    this.viewerZoomIn.hidden = false;
+    this.viewerZoomOut.hidden = false;
+    this.viewerFit.hidden = false;
     this.viewerAsset = null;
   }
 
@@ -2002,6 +2415,7 @@ export class AssetLibrary {
   render() {
     this.closeContextMenu();
     this.stopPreviewAnimators();
+    this.stopAudioPreview();
     const meta =
       this.categoryMeta[this.activeCategory] ??
       CATEGORY_META[this.activeCategory];
@@ -2036,9 +2450,11 @@ export class AssetLibrary {
     this.dropHint.textContent =
       this.activeCategory === "tiled"
         ? "按住素材拖到文件夹可分类 · 空白处右键可新建文件夹 · 文件夹右键可管理"
-        : meta.allowedExtensions?.length === 1
-          ? "仅支持 PNG 图片 · 按住素材拖到文件夹可分类 · 空白处右键可新建文件夹"
-          : "按住素材拖到文件夹可分类 · 空白处右键可新建文件夹 · 单击文件夹进入";
+        : meta.kind === "audio"
+          ? "将音频拖到这里，或点击“上传音效” · 单击“试听”播放 · 右键可查看或删除"
+          : meta.allowedExtensions?.length === 1
+            ? "仅支持 PNG 图片 · 按住素材拖到文件夹可分类 · 空白处右键可新建文件夹"
+            : "按住素材拖到文件夹可分类 · 空白处右键可新建文件夹 · 单击文件夹进入";
 
     if (!this.apiAvailable) {
       this.grid.innerHTML = "";
@@ -2058,7 +2474,9 @@ export class AssetLibrary {
       this.emptyDescription.textContent =
         this.activeCategory === "tiled"
           ? "使用右上角“导入文件夹”选择 Tiled 地图项目。"
-          : "将图片拖到这里，或使用右上角“上传素材”。";
+          : meta.kind === "audio"
+            ? "将音频拖到这里，或使用右上角“上传音效”。"
+            : "将图片拖到这里，或使用右上角“上传素材”。";
       return;
     }
 
@@ -2096,6 +2514,27 @@ export class AssetLibrary {
               data-tiled-preview="${escapeHtml(asset.id)}"
               aria-label="${escapeHtml(displayName)} 地图预览"
             ></canvas>
+          `;
+        } else if (isAudioAsset(asset)) {
+          preview = `
+            <div class="asset-audio-preview">
+              <span class="asset-audio-mark" aria-hidden="true">♪</span>
+              <span class="asset-audio-codec">${escapeHtml(
+                getAudioFormatLabel(asset)
+              )}</span>
+              <button
+                class="asset-audio-play"
+                type="button"
+                data-audio-play="${escapeHtml(asset.id)}"
+                aria-label="试听 ${escapeHtml(displayName)}"
+                title="试听"
+              >
+                <span
+                  class="asset-audio-play-glyph"
+                  aria-hidden="true"
+                ></span>
+              </button>
+            </div>
           `;
         } else if (asset.isSpriteSheet) {
           preview = `
@@ -2209,6 +2648,7 @@ export class AssetLibrary {
           this.categoryMeta[category.id] = {
             groupLabel: category.group?.label ?? "",
             label: category.label,
+            kind: category.kind ?? "image",
             allowedExtensions:
               category.allowedExtensions ??
               ALL_IMAGE_EXTENSIONS
@@ -2267,7 +2707,7 @@ export class AssetLibrary {
     if (!allowedExtensions.includes(extension)) {
       return `${meta?.label ?? "当前分类"}仅支持 ${formatExtensionLabel(
         allowedExtensions
-      )} 图片`;
+      )} 文件`;
     }
     if (file.size === 0) {
       return "文件内容为空";

@@ -24,42 +24,91 @@
         </div>
 
         <nav class="module-nav" aria-label="编辑器模块">
-          <button class="module-tab is-active" type="button" aria-current="page">
+          <button
+            class="module-tab is-active"
+            id="module-map"
+            type="button"
+            aria-current="page"
+          >
             地图
+          </button>
+          <button
+            class="module-tab"
+            type="button"
+            data-content-module="conversations"
+          >
+            会话
+          </button>
+          <button
+            class="module-tab"
+            type="button"
+            data-content-module="quests"
+          >
+            任务
+          </button>
+          <button
+            class="module-tab"
+            type="button"
+            data-content-module="items"
+          >
+            物品
+          </button>
+          <button
+            class="module-tab"
+            type="button"
+            data-content-module="animations"
+          >
+            动画演绎
+          </button>
+          <button
+            class="module-tab"
+            type="button"
+            data-content-module="characters"
+          >
+            角色
           </button>
           <button class="module-tab" id="open-asset-library" type="button">
             素材库
-          </button>
-          <button class="module-tab" type="button" disabled title="后续版本开放">
-            角色
-          </button>
-          <button class="module-tab" type="button" disabled title="后续版本开放">
-            任务
-          </button>
-          <button class="module-tab" type="button" disabled title="后续版本开放">
-            NPC
-          </button>
-          <button class="module-tab" type="button" disabled title="后续版本开放">
-            怪物
-          </button>
-          <button class="module-tab" type="button" disabled title="后续版本开放">
-            其它
           </button>
         </nav>
 
         <div class="header-actions">
           <span class="save-state" id="save-state">正在连接项目</span>
-          <select class="level-select" id="level-select" aria-label="切换关卡">
+          <select
+            class="level-select map-only"
+            id="level-select"
+            aria-label="切换关卡"
+          >
             <option value="">加载中…</option>
           </select>
-          <button class="button button-quiet" id="new-level" type="button">
+          <button
+            class="button button-quiet map-only"
+            id="new-level"
+            type="button"
+          >
             新建
           </button>
-          <button class="button button-quiet" id="open-level" type="button">
+          <button
+            class="button button-quiet map-only"
+            id="open-level"
+            type="button"
+          >
             打开文件
           </button>
-          <button class="button button-primary" id="save-level" type="button">
+          <button
+            class="button button-primary map-only"
+            id="save-level"
+            type="button"
+          >
             保存到游戏
+          </button>
+          <button
+            class="button button-primary"
+            id="save-content"
+            type="button"
+            hidden
+          >
+            保存内容
           </button>
           <button
             class="icon-button help-button"
@@ -73,7 +122,7 @@
         </div>
       </header>
 
-      <main class="editor-layout">
+      <main class="editor-layout" id="editor-workspace">
         <aside class="sidebar sidebar-left" aria-label="地图工具与图层">
           <section class="panel-section">
             <div class="section-heading">
@@ -234,6 +283,418 @@
           </section>
         </aside>
       </main>
+
+      <main class="content-layout" id="content-workspace" hidden>
+        <aside class="content-sidebar" aria-label="内容模块列表">
+          <div class="content-sidebar-heading">
+            <div>
+              <span class="document-eyebrow" id="content-sidebar-eyebrow">
+                会话
+              </span>
+              <strong id="content-module-title">最近打开</strong>
+            </div>
+            <span class="content-prefix" id="content-module-prefix">00</span>
+          </div>
+          <div class="content-sidebar-actions">
+            <button
+              class="button button-primary"
+              id="new-content-entry"
+              type="button"
+            >
+              新建会话
+            </button>
+          </div>
+          <div class="content-entry-list" id="content-entry-list"></div>
+          <p class="content-sidebar-note" id="content-sidebar-note">
+            最近打开最多保留 10 个；新打开项从顶部加入，满额时移除最下面一项。
+          </p>
+        </aside>
+
+        <section class="content-editor">
+          <header class="content-editor-heading">
+            <div class="content-heading-copy">
+              <span class="document-eyebrow" id="content-editor-eyebrow">
+                00 · 会话
+              </span>
+              <strong id="content-entry-title">会话资源管理器</strong>
+              <span class="content-entry-id" id="content-entry-id"></span>
+            </div>
+            <div class="content-history-actions">
+              <button
+                class="icon-button"
+                id="undo-content"
+                type="button"
+                title="撤销内容修改"
+              >
+                ↶
+              </button>
+              <button
+                class="icon-button"
+                id="redo-content"
+                type="button"
+                title="重做内容修改"
+              >
+                ↷
+              </button>
+            </div>
+          </header>
+
+          <div class="content-editor-body">
+            <header
+              class="content-explorer-toolbar"
+              id="content-explorer-toolbar"
+            >
+              <nav
+                class="content-breadcrumb"
+                id="content-breadcrumb"
+                aria-label="内容路径"
+              ></nav>
+              <div class="content-explorer-actions">
+                <button
+                  class="button button-quiet"
+                  id="new-content-folder"
+                  type="button"
+                >
+                  新建文件夹
+                </button>
+                <button
+                  class="button button-primary"
+                  id="browser-new-content-entry"
+                  type="button"
+                >
+                  新建会话
+                </button>
+              </div>
+            </header>
+
+            <section
+              class="content-explorer"
+              id="content-explorer"
+              aria-label="内容文件"
+            >
+              <div
+                class="content-browser-drop-zone"
+                id="content-browser-drop-zone"
+              >
+                <div class="content-browser-summary">
+                  <span id="content-browser-summary">根目录 · 0 个会话</span>
+                  <span>拖拽文件或文件夹可移动 · 右键打开更多操作</span>
+                </div>
+                <div
+                  class="content-browser-grid"
+                  id="content-browser-grid"
+                ></div>
+                <div
+                  class="content-browser-empty"
+                  id="content-browser-empty"
+                  hidden
+                >
+                  <span class="content-browser-empty-icon" aria-hidden="true">
+                    ▱
+                  </span>
+                  <strong id="content-browser-empty-title">
+                    这个文件夹还是空的
+                  </strong>
+                  <p id="content-browser-empty-copy">
+                    新建内容，或把已有内容拖到这里。
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <div class="content-editor-scroll" id="content-editor-scroll">
+              <div class="content-empty" id="content-empty">
+                <span class="content-empty-mark" aria-hidden="true">＋</span>
+                <strong id="content-empty-title">选择一个会话</strong>
+                <p id="content-empty-copy">
+                  从左侧最近打开列表或文件区域选择会话后，在这里编辑内容。
+                </p>
+                <button
+                  class="button button-primary"
+                  id="empty-new-content-entry"
+                  type="button"
+                >
+                  新建会话
+                </button>
+              </div>
+
+              <form class="content-form" id="content-form" hidden>
+                <section class="form-section">
+                  <h3 class="form-section-title">
+                    <span>基础信息</span>
+                    <span class="field-note" id="content-schema-note">
+                      schema v14
+                    </span>
+                  </h3>
+                  <div class="field-grid">
+                    <label class="field is-wide">
+                      <span id="content-id-label">稳定 ID</span>
+                      <input
+                        id="content-id-field"
+                        type="text"
+                        readonly
+                      />
+                    </label>
+                    <div class="content-name-row">
+                      <label class="field">
+                        <span id="content-name-label">名称</span>
+                        <input
+                          id="content-name-field"
+                          type="text"
+                          data-content-field="name"
+                          autocomplete="off"
+                        />
+                      </label>
+                      <button
+                        class="button button-quiet item-illustration-button"
+                        id="item-illustration-button"
+                        type="button"
+                        hidden
+                      >
+                        导入插图
+                      </button>
+                    </div>
+                    <label
+                      class="field is-wide"
+                      id="content-description-field-wrap"
+                    >
+                      <span id="content-description-label">说明</span>
+                      <textarea
+                        id="content-description-field"
+                        data-content-field="description"
+                        rows="7"
+                      ></textarea>
+                    </label>
+                  </div>
+                </section>
+
+                <section
+                  class="form-section content-character-section"
+                  id="content-character-section"
+                  hidden
+                ></section>
+
+                <section
+                  class="form-section content-dialogue-section"
+                  id="content-dialogue-section"
+                  hidden
+                >
+                  <header class="content-dialogue-heading">
+                    <h3 class="form-section-title">
+                      <span>对话表</span>
+                      <span
+                        class="field-note"
+                        id="content-dialogue-count"
+                      >
+                        0 行
+                      </span>
+                    </h3>
+                    <button
+                      class="content-dialogue-add"
+                      id="add-content-dialogue-line"
+                      type="button"
+                      title="新建对话"
+                      aria-label="新建对话"
+                    >
+                      ＋
+                    </button>
+                  </header>
+                  <div
+                    class="content-dialogue-list"
+                    id="content-dialogue-list"
+                  ></div>
+                  <div
+                    class="content-dialogue-empty"
+                    id="content-dialogue-empty"
+                  >
+                    还没有对话行，点击右上角加号开始。
+                  </div>
+                </section>
+
+                <section
+                  class="form-section content-quest-section"
+                  id="content-quest-section"
+                  hidden
+                ></section>
+
+                <section
+                  class="form-section content-item-section"
+                  id="content-item-section"
+                  hidden
+                ></section>
+
+                <section class="form-section" id="content-module-section">
+                  <h3 class="form-section-title">
+                    <span>模块约定</span>
+                    <span class="field-note" id="content-module-prefix-note">
+                      00 · 会话
+                    </span>
+                  </h3>
+                  <div class="content-module-note">
+                    <strong id="content-module-note-title">
+                      会话内容占位
+                    </strong>
+                    <p id="content-module-note-copy">
+                      当前先提供稳定 ID 和基础描述；后续可在 contract
+                      中扩展该模块的专用字段。
+                    </p>
+                  </div>
+                </section>
+
+                <section
+                  class="form-section content-danger-section"
+                  id="content-danger-section"
+                >
+                  <div>
+                    <strong>删除内容项</strong>
+                    <p>删除后当前 ID 不会再次分配。</p>
+                  </div>
+                  <button
+                    class="button button-danger"
+                    id="delete-content-entry"
+                    type="button"
+                  >
+                    删除
+                  </button>
+                </section>
+              </form>
+            </div>
+          </div>
+
+          <div class="status-bar">
+            <div class="status-summary">
+              <span class="status-dot"></span>
+              <span id="content-status-message">
+                已加载独立内容文档
+              </span>
+            </div>
+            <div class="status-actions">
+              <span id="content-entry-count">0 项</span>
+              <button
+                class="text-button"
+                id="export-content"
+                type="button"
+              >
+                导出 JSON
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <div
+        class="asset-context-menu content-context-menu"
+        id="content-context-menu"
+        role="menu"
+        aria-label="会话操作"
+        hidden
+      >
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-content-action="open"
+        >
+          <span class="asset-context-icon" aria-hidden="true">↗</span>
+          <span>
+            <strong>打开会话</strong>
+            <small>在中间文件区打开</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-content-action="copy"
+        >
+          <span class="asset-context-icon" aria-hidden="true">⧉</span>
+          <span>
+            <strong>复制</strong>
+            <small>粘贴时生成新的会话 ID</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-content-action="cut"
+        >
+          <span class="asset-context-icon" aria-hidden="true">✂</span>
+          <span>
+            <strong>剪切</strong>
+            <small>移动到目标文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-content-action="paste"
+        >
+          <span class="asset-context-icon" aria-hidden="true">▣</span>
+          <span>
+            <strong>粘贴</strong>
+            <small>粘贴到当前文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-content-action="new-folder"
+        >
+          <span class="asset-context-icon" aria-hidden="true">＋</span>
+          <span>
+            <strong>新建文件夹</strong>
+            <small>在当前路径中创建文件夹</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item"
+          type="button"
+          role="menuitem"
+          data-content-action="rename"
+        >
+          <span class="asset-context-icon" aria-hidden="true">✎</span>
+          <span>
+            <strong>重命名</strong>
+            <small>修改会话或文件夹名称</small>
+          </span>
+        </button>
+        <button
+          class="asset-context-item is-danger"
+          type="button"
+          role="menuitem"
+          data-content-action="delete"
+        >
+          <span class="asset-context-icon" aria-hidden="true">⌫</span>
+          <span>
+            <strong>删除</strong>
+            <small>删除会话；文件夹会递归删除</small>
+          </span>
+        </button>
+      </div>
+
+      <div
+        class="asset-context-menu dialogue-context-menu"
+        id="dialogue-context-menu"
+        role="menu"
+        aria-label="对话行操作"
+        hidden
+      >
+        <button
+          class="asset-context-item is-danger"
+          type="button"
+          role="menuitem"
+          data-dialogue-action="delete"
+        >
+          <span class="asset-context-icon" aria-hidden="true">⌫</span>
+          <span>
+            <strong>删除对话</strong>
+            <small>移除当前对话行</small>
+          </span>
+        </button>
+      </div>
     </div>
 
     <input id="file-input" type="file" accept=".json,application/json" hidden />
@@ -320,6 +781,34 @@
                 <span data-asset-count>0</span>
               </button>
             </div>
+            <div class="asset-subcategory-list">
+              <div class="asset-category-section-heading">
+                <span>音效</span>
+                <span>2 类</span>
+              </div>
+              <button
+                class="asset-subcategory"
+                type="button"
+                data-asset-category="sfx"
+              >
+                <span>
+                  <i class="asset-subcategory-dot is-sfx"></i>
+                  短音效
+                </span>
+                <span data-asset-count>0</span>
+              </button>
+              <button
+                class="asset-subcategory"
+                type="button"
+                data-asset-category="ambient"
+              >
+                <span>
+                  <i class="asset-subcategory-dot is-ambient"></i>
+                  环境音
+                </span>
+                <span data-asset-count>0</span>
+              </button>
+            </div>
           </div>
           <p class="asset-scope-note">
             素材保存在编辑器工作区，暂不与游戏资源建立关联。
@@ -378,7 +867,7 @@
 
           <div class="asset-drop-zone" id="asset-drop-zone">
             <div class="asset-drop-hint" id="asset-drop-hint">
-              将图片拖到这里，或点击“上传素材” · 右键素材可查看、重命名或删除
+              将图片或音频拖到这里，或点击“上传素材” · 右键素材可查看、重命名或删除
             </div>
             <div class="asset-grid" id="asset-grid"></div>
             <div class="asset-empty" id="asset-empty" hidden>
@@ -395,7 +884,7 @@
               正在读取工作区素材…
             </span>
             <span id="asset-supported-formats">
-              支持 PNG、JPG、WebP、GIF、SVG · 单个不超过 20 MB
+              支持图片与 WAV、OGG、MP3 音频 · 单个不超过 20 MB
             </span>
           </div>
         </section>
@@ -663,6 +1152,79 @@
             aria-label="动画素材预览"
             hidden
           ></canvas>
+          <audio
+            id="asset-viewer-audio"
+            preload="metadata"
+            hidden
+          ></audio>
+          <div
+            class="asset-audio-player"
+            id="asset-audio-player"
+            hidden
+          >
+            <div class="asset-audio-timeline">
+              <span id="asset-audio-current">0:00</span>
+              <input
+                class="asset-audio-seek"
+                id="asset-audio-seek"
+                type="range"
+                min="0"
+                max="0"
+                step="0.01"
+                value="0"
+                aria-label="播放进度"
+              />
+              <span id="asset-audio-duration">0:00</span>
+            </div>
+            <div class="asset-audio-controls">
+              <button
+                class="asset-audio-skip"
+                id="asset-audio-rewind"
+                type="button"
+                aria-label="后退 10 秒"
+              >
+                −10s
+              </button>
+              <button
+                class="asset-audio-play-large"
+                id="asset-audio-play"
+                type="button"
+                aria-label="播放"
+              >
+                <span
+                  class="asset-audio-play-glyph-large"
+                  aria-hidden="true"
+                ></span>
+              </button>
+              <button
+                class="asset-audio-skip"
+                id="asset-audio-forward"
+                type="button"
+                aria-label="前进 10 秒"
+              >
+                +10s
+              </button>
+              <button
+                class="asset-audio-mute"
+                id="asset-audio-mute"
+                type="button"
+                aria-label="静音"
+                aria-pressed="false"
+              >
+                静音
+              </button>
+              <input
+                class="asset-audio-volume"
+                id="asset-audio-volume"
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value="0.8"
+                aria-label="音量"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -832,6 +1394,96 @@
     </dialog>
 
     <dialog
+      class="background-picker-dialog item-illustration-dialog"
+      id="item-illustration-dialog"
+      aria-labelledby="item-illustration-title"
+    >
+      <div class="background-picker-heading">
+        <div>
+          <span class="inspector-eyebrow">
+            素材库 / 静态贴图
+          </span>
+          <h2 id="item-illustration-title">导入物品插图</h2>
+          <p>
+            从素材库的“静态贴图”中选择插图；路径和文件夹会随物品保存。
+          </p>
+        </div>
+        <div class="background-picker-actions">
+          <button
+            class="button button-quiet"
+            id="refresh-item-illustration"
+            type="button"
+          >
+            刷新
+          </button>
+          <button
+            class="icon-button"
+            id="close-item-illustration"
+            type="button"
+            aria-label="关闭插图选择"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div class="background-picker-body">
+        <aside
+          class="background-picker-taxonomy"
+          aria-label="物品插图分类"
+        >
+          <span class="background-picker-taxonomy-label">
+            静态贴图
+          </span>
+          <div
+            class="background-picker-categories"
+            id="item-illustration-categories"
+          ></div>
+          <p>插图引用素材库中的静态贴图，不会复制文件。</p>
+        </aside>
+        <section class="background-picker-collection">
+          <div class="background-picker-collection-heading">
+            <div class="background-picker-heading-copy">
+              <nav
+                class="background-picker-breadcrumb"
+                id="item-illustration-breadcrumb"
+                aria-label="当前位置"
+              ></nav>
+            </div>
+            <span id="item-illustration-summary">
+              正在读取…
+            </span>
+          </div>
+          <div
+            class="background-picker-grid"
+            id="item-illustration-grid"
+          ></div>
+          <div
+            class="background-picker-empty"
+            id="item-illustration-empty"
+            hidden
+          >
+            <span aria-hidden="true">◇</span>
+            <strong id="item-illustration-empty-title">
+              还没有静态贴图素材
+            </strong>
+            <p id="item-illustration-empty-description">
+              请先在素材库的“静态贴图”中上传图片。
+            </p>
+          </div>
+        </section>
+      </div>
+      <div class="background-picker-footer">
+        <span
+          id="item-illustration-status"
+          aria-live="polite"
+        >
+          正在读取静态贴图…
+        </span>
+        <span>路径与文件夹随物品保存。</span>
+      </div>
+    </dialog>
+
+    <dialog
       class="tiled-map-select-dialog"
       id="tiled-map-select-dialog"
       aria-labelledby="tiled-map-select-title"
@@ -875,6 +1527,466 @@
           type="button"
         >
           导入所选地图
+        </button>
+      </div>
+    </dialog>
+
+    <dialog
+      class="character-content-dialog character-animation-dialog"
+      id="character-animation-dialog"
+      aria-labelledby="character-animation-dialog-title"
+    >
+      <div class="dialog-heading">
+        <div>
+          <span class="inspector-eyebrow">角色动画</span>
+          <h2 id="character-animation-dialog-title">从资源库绑定动画</h2>
+        </div>
+        <button
+          class="icon-button"
+          id="close-character-animation"
+          type="button"
+          aria-label="关闭动画选择"
+        >
+          ×
+        </button>
+      </div>
+      <div class="character-dialog-toolbar">
+        <label class="character-dialog-field">
+          <span>动画类型</span>
+          <select id="character-animation-type"></select>
+        </label>
+        <p id="character-animation-status" class="dialog-note">
+          已绑定的非“其它动画”类型不会再出现在列表中。
+        </p>
+      </div>
+      <div class="character-animation-browser">
+        <div class="character-animation-browser-heading">
+          <nav
+            class="background-picker-breadcrumb"
+            id="character-animation-breadcrumb"
+            aria-label="动画素材位置"
+          ></nav>
+          <span id="character-animation-summary">
+            正在读取…
+          </span>
+        </div>
+        <div
+          class="character-animation-assets"
+          id="character-animation-assets"
+        ></div>
+        <div
+          class="character-animation-empty"
+          id="character-animation-empty"
+          hidden
+        >
+          <strong id="character-animation-empty-title">
+            还没有动画素材
+          </strong>
+          <span id="character-animation-empty-description">
+            请先在素材库的“动画”分类中上传精灵表。
+          </span>
+        </div>
+      </div>
+      <div class="character-dialog-actions">
+        <button
+          class="button button-quiet"
+          id="cancel-character-animation"
+          type="button"
+        >
+          取消
+        </button>
+        <button
+          class="button button-primary"
+          id="confirm-character-animation"
+          type="button"
+          disabled
+        >
+          绑定动画
+        </button>
+      </div>
+    </dialog>
+
+    <dialog
+      class="character-content-dialog character-range-dialog"
+      id="character-attack-range-dialog"
+      aria-labelledby="character-attack-range-title"
+    >
+      <div class="dialog-heading">
+        <div>
+          <span class="inspector-eyebrow">帧设置</span>
+          <h2 id="character-attack-range-title">设置动画帧</h2>
+        </div>
+        <button
+          class="icon-button"
+          id="close-character-attack-range"
+          type="button"
+          aria-label="关闭帧设置"
+        >
+          ×
+        </button>
+      </div>
+      <p class="dialog-note">
+        <span id="character-attack-range-frame">第 1 帧</span>
+        · 设置此帧的攻击范围和短音效；攻击范围只对当前帧生效，
+        不沿用到其它帧。滚轮缩放画布，拖动画布平移，拖动绿色点调整范围顶点。
+      </p>
+      <form id="character-attack-range-form">
+        <div class="character-range-workbench">
+          <div class="character-range-preview">
+            <canvas
+              id="character-attack-range-canvas"
+              width="1000"
+              height="650"
+              aria-label="攻击帧与多边形范围编辑器"
+            ></canvas>
+            <div class="character-range-zoom">
+              <button
+                id="character-range-zoom-out"
+                type="button"
+                aria-label="缩小攻击范围画布"
+              >
+                −
+              </button>
+              <span id="character-range-zoom-value">100%</span>
+              <button
+                id="character-range-zoom-in"
+                type="button"
+                aria-label="放大攻击范围画布"
+              >
+                ＋
+              </button>
+              <button
+                id="character-range-zoom-fit"
+                type="button"
+              >
+                适应
+              </button>
+            </div>
+          </div>
+          <aside class="character-range-inspector">
+            <section class="character-frame-sound">
+              <header class="character-frame-sound-heading">
+                <div>
+                  <strong>帧音效</strong>
+                  <small>动画播放到这一帧时触发</small>
+                </div>
+                <span>短音效</span>
+              </header>
+              <div id="character-frame-sound-panel"></div>
+            </section>
+            <div
+              class="character-frame-mode-tabs"
+              role="group"
+              aria-label="帧设置编辑对象"
+            >
+              <button
+                type="button"
+                data-frame-edit-mode="range"
+                class="is-active"
+                aria-pressed="true"
+              >
+                攻击范围
+              </button>
+              <button
+                type="button"
+                data-frame-edit-mode="collision"
+                aria-pressed="false"
+              >
+                碰撞体
+              </button>
+            </div>
+            <div id="character-frame-range-controls">
+              <label class="character-dialog-field">
+                <span>范围点数</span>
+                <select id="character-range-point-count">
+                  <option value="3">3 个点</option>
+                  <option value="4" selected>4 个点</option>
+                  <option value="5">5 个点</option>
+                  <option value="6">6 个点</option>
+                  <option value="7">7 个点</option>
+                  <option value="8">8 个点</option>
+                  <option value="9">9 个点</option>
+                  <option value="10">10 个点</option>
+                  <option value="11">11 个点</option>
+                  <option value="12">12 个点</option>
+                </select>
+              </label>
+              <p class="character-range-hint">
+                选择线段后可切换直线或曲线。曲线拖动菱形控制点调整弧度。每个帧的攻击范围独立保存。
+              </p>
+              <div
+                class="character-range-segment-list"
+                id="character-range-segment-list"
+              ></div>
+            </div>
+            <section
+              class="character-collision-panel"
+              id="character-frame-collision-controls"
+              hidden
+            >
+              <header>
+                <strong>角色碰撞体</strong>
+                <small>所有动画帧共享，随帧尺寸等比缩放</small>
+              </header>
+              <p>
+                拖内部移动；拖四边按该方向缩放；拖四角同时调整宽高。
+                碰撞体使用淡黄色显示。
+              </p>
+              <div
+                class="character-collision-stats"
+                id="character-collision-stats"
+              ></div>
+              <button
+                class="button button-quiet"
+                type="button"
+                data-frame-collision-action="reset"
+              >
+                恢复默认碰撞体
+              </button>
+            </section>
+          </aside>
+        </div>
+        <div class="character-dialog-actions">
+          <button
+            class="button button-danger"
+            id="clear-character-attack-range"
+            type="button"
+          >
+            清除此帧范围
+          </button>
+          <button
+            class="button button-quiet"
+            id="cancel-character-attack-range"
+            type="button"
+          >
+            取消
+          </button>
+          <button class="button button-primary" type="submit">
+            保存帧设置
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog
+      class="background-picker-dialog level-music-dialog"
+      id="level-music-dialog"
+      aria-labelledby="level-music-title"
+    >
+      <div class="background-picker-heading">
+        <div>
+          <span class="inspector-eyebrow">
+            素材库 / 音效 / 环境音
+          </span>
+          <h2 id="level-music-title">导入关卡背景音乐</h2>
+          <p>
+            从素材库的“环境音”中选择音乐；进入关卡后循环播放，离开关卡时停止。
+          </p>
+        </div>
+        <div class="background-picker-actions">
+          <button
+            class="button button-quiet"
+            id="refresh-level-music"
+            type="button"
+          >
+            刷新
+          </button>
+          <button
+            class="icon-button"
+            id="close-level-music"
+            type="button"
+            aria-label="关闭关卡音乐选择"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div class="background-picker-body">
+        <aside
+          class="background-picker-taxonomy"
+          aria-label="关卡音乐分类"
+        >
+          <span class="background-picker-taxonomy-label">
+            环境音
+          </span>
+          <div
+            class="background-picker-categories"
+            id="level-music-categories"
+          ></div>
+          <p>只显示素材库“音效 / 环境音”中的音频。</p>
+        </aside>
+        <section class="background-picker-collection">
+          <div class="background-picker-collection-heading">
+            <div class="background-picker-heading-copy">
+              <nav
+                class="background-picker-breadcrumb"
+                id="level-music-breadcrumb"
+                aria-label="环境音素材位置"
+              ></nav>
+            </div>
+            <span id="level-music-summary">
+              正在读取…
+            </span>
+          </div>
+          <div
+            class="background-picker-grid"
+            id="level-music-grid"
+          ></div>
+          <div
+            class="background-picker-empty"
+            id="level-music-empty"
+            hidden
+          >
+            <span aria-hidden="true">♪</span>
+            <strong id="level-music-empty-title">
+              还没有环境音素材
+            </strong>
+            <p id="level-music-empty-description">
+              请先在素材库的“音效 / 环境音”中上传音频。
+            </p>
+          </div>
+        </section>
+      </div>
+      <div class="background-picker-footer">
+        <span
+          id="level-music-status"
+          aria-live="polite"
+        >
+          正在读取环境音…
+        </span>
+        <span>音乐会复制到游戏项目，路径与文件夹随关卡保存。</span>
+      </div>
+    </dialog>
+
+    <dialog
+      class="background-picker-dialog character-frame-sound-dialog"
+      id="character-frame-sound-dialog"
+      aria-labelledby="character-frame-sound-title"
+    >
+      <div class="background-picker-heading">
+        <div>
+          <span class="inspector-eyebrow">
+            素材库 / 音效 / 短音效
+          </span>
+          <h2 id="character-frame-sound-title">导入帧音效</h2>
+          <p>
+            从素材库的“短音效”中选择音频；文件夹和路径会随动画帧设置保存。
+          </p>
+        </div>
+        <div class="background-picker-actions">
+          <button
+            class="button button-quiet"
+            id="refresh-character-frame-sound"
+            type="button"
+          >
+            刷新
+          </button>
+          <button
+            class="icon-button"
+            id="close-character-frame-sound"
+            type="button"
+            aria-label="关闭帧音效选择"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div class="background-picker-body">
+        <aside
+          class="background-picker-taxonomy"
+          aria-label="帧音效分类"
+        >
+          <span class="background-picker-taxonomy-label">
+            短音效
+          </span>
+          <div
+            class="background-picker-categories"
+            id="character-frame-sound-categories"
+          ></div>
+          <p>只显示素材库“音效 / 短音效”中的音频。</p>
+        </aside>
+        <section class="background-picker-collection">
+          <div class="background-picker-collection-heading">
+            <div class="background-picker-heading-copy">
+              <nav
+                class="background-picker-breadcrumb"
+                id="character-frame-sound-breadcrumb"
+                aria-label="短音效素材位置"
+              ></nav>
+            </div>
+            <span id="character-frame-sound-summary">
+              正在读取…
+            </span>
+          </div>
+          <div
+            class="background-picker-grid"
+            id="character-frame-sound-grid"
+          ></div>
+          <div
+            class="background-picker-empty"
+            id="character-frame-sound-empty"
+            hidden
+          >
+            <span aria-hidden="true">♪</span>
+            <strong id="character-frame-sound-empty-title">
+              还没有短音效素材
+            </strong>
+            <p id="character-frame-sound-empty-description">
+              请先在素材库的“音效 / 短音效”中上传音频。
+            </p>
+          </div>
+        </section>
+      </div>
+      <div class="background-picker-footer">
+        <span
+          id="character-frame-sound-status"
+          aria-live="polite"
+        >
+          正在读取短音效…
+        </span>
+        <span>文件夹与路径随动画帧设置保存。</span>
+      </div>
+    </dialog>
+
+    <dialog
+      class="character-content-dialog character-trigger-dialog"
+      id="character-trigger-dialog"
+      aria-labelledby="character-trigger-title"
+    >
+      <div class="dialog-heading">
+        <div>
+          <span class="inspector-eyebrow" id="character-trigger-eyebrow">
+            向右触发键
+          </span>
+          <h2 id="character-trigger-title">捕获向右触发按键</h2>
+        </div>
+        <button
+          class="icon-button"
+          id="close-character-trigger"
+          type="button"
+          aria-label="关闭触发键设置"
+        >
+          ×
+        </button>
+      </div>
+      <p class="dialog-note" id="character-trigger-note">
+        本次按键只绑定到向右动画。点击下方区域后按键盘键，或直接点击鼠标按钮；按 Esc 取消。
+      </p>
+      <button
+        class="character-trigger-capture"
+        id="character-trigger-capture"
+        type="button"
+      >
+        <strong>等待输入</strong>
+        <span>键盘 / 鼠标</span>
+      </button>
+      <div class="character-dialog-actions">
+        <button
+          class="button button-quiet"
+          id="cancel-character-trigger"
+          type="button"
+        >
+          取消
         </button>
       </div>
     </dialog>

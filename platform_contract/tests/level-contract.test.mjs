@@ -76,8 +76,117 @@ test("旧关卡会迁移到当前 schema 版本", () => {
   );
   assert.equal(migrated.spawnPoints[0].id, "spawn-start");
   assert.equal(migrated.mechanisms[0].type, "gate");
+  assert.equal(migrated.backgroundMusic, null);
   assert.equal(migrated.story, undefined);
   assert.equal(migrated.gates, undefined);
+});
+
+test("V3 关卡迁移补齐空背景音乐且保留已有音乐", () => {
+  const empty = createValidLevel();
+  empty.schemaVersion = 3;
+  delete empty.backgroundMusic;
+  assert.equal(
+    migrateLevelDocument(empty).backgroundMusic,
+    null
+  );
+
+  const withMusic = createValidLevel();
+  withMusic.schemaVersion = 3;
+  withMusic.backgroundMusic = {
+    id: "audio/ambient/庭院.mp3",
+    path: "assets/audio/ambient/庭院.mp3",
+    fileName: "庭院.mp3",
+    displayName: "庭院环境音",
+    mimeType: "audio/mpeg",
+    revision: "music-v1"
+  };
+  const migrated = migrateLevelDocument(withMusic)
+    .backgroundMusic;
+  assert.equal(migrated.fileName, "庭院.mp3");
+  assert.equal(migrated.volume, 1);
+  assert.equal(migrated.loop, true);
+});
+
+test("V4 关卡背景音乐补齐音量并默认循环", () => {
+  const legacy = createValidLevel();
+  legacy.schemaVersion = 4;
+  legacy.backgroundMusic = {
+    id: "audio/ambient/庭院.mp3",
+    path: "assets/audio/ambient/庭院.mp3",
+    fileName: "庭院.mp3",
+    revision: "music-v1",
+    volume: 0.4
+  };
+
+  const music = migrateLevelDocument(legacy).backgroundMusic;
+  assert.equal(music.volume, 0.4);
+  assert.equal(music.loop, true);
+});
+
+test("关卡背景音乐校验路径、格式和文件夹字段", () => {
+  const level = createValidLevel();
+  level.backgroundMusic = {
+    id: "audio/ambient/庭院.mp3",
+    path: "assets/audio/ambient/庭院.mp3",
+    fileName: "庭院.mp3",
+    displayName: "庭院环境音",
+    mimeType: "audio/mpeg",
+    folderId: "ambient-folder-0001",
+    folderPath: "第一章 / 庭院",
+    revision: "music-v1",
+    volume: 0.8,
+    loop: true
+  };
+
+  assert.equal(
+    validateLevel(level, { catalogs }).filter(
+      (issue) => issue.severity === "error"
+    ).length,
+    0
+  );
+
+  level.backgroundMusic.path = "../escape.mp3";
+  let messages = validateLevel(level, { catalogs })
+    .filter((issue) => issue.severity === "error")
+    .map((issue) => issue.message);
+  assert.ok(
+    messages.some((message) =>
+      message.includes("path 必须是安全")
+    )
+  );
+
+  level.backgroundMusic.path = "assets/audio/ambient/庭院.flac";
+  messages = validateLevel(level, { catalogs })
+    .filter((issue) => issue.severity === "error")
+    .map((issue) => issue.message);
+  assert.ok(
+    messages.some((message) =>
+      message.includes("WAV、OGG 或 MP3")
+    )
+  );
+
+  level.backgroundMusic.path = "assets/audio/ambient/庭院.mp3";
+  level.backgroundMusic.folderId = 42;
+  level.backgroundMusic.volume = 1.5;
+  level.backgroundMusic.loop = "yes";
+  messages = validateLevel(level, { catalogs })
+    .filter((issue) => issue.severity === "error")
+    .map((issue) => issue.message);
+  assert.ok(
+    messages.some((message) =>
+      message.includes("folderId")
+    )
+  );
+  assert.ok(
+    messages.some((message) =>
+      message.includes("volume")
+    )
+  );
+  assert.ok(
+    messages.some((message) =>
+      message.includes("loop")
+    )
+  );
 });
 
 test("当前 schema 的有效关卡没有错误", () => {

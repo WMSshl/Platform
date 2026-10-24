@@ -21,8 +21,20 @@ import {
   hasBlockingErrors,
   validateLevel
 } from "../model/Validation.js";
+import {
+  createEmptyContentDocument,
+  hasContentErrors,
+  normalizeContentDocument,
+  validateContentDocument
+} from "../model/ContentModel.js";
 import { AssetLibrary } from "./AssetLibrary.js";
+import {
+  AssetPickerDialog,
+  renderAudioAssetPreview
+} from "./AssetBrowser.js";
 import { BackgroundPicker } from "./BackgroundPicker.js";
+import { ContentStore } from "./ContentStore.js";
+import { ContentWorkspace } from "./ContentWorkspace.js";
 import { EditorStore } from "./EditorStore.js";
 import { Inspector } from "./Inspector.js";
 import { MAP_SCENE_KEY, MapScene } from "./MapScene.js";
@@ -36,6 +48,30 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function formatAssetSize(value) {
+  const bytes = Number(value) || 0;
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function gameAssetUrl(relativePath, revision = "") {
+  const path = String(relativePath ?? "")
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const version = revision
+    ? `?v=${encodeURIComponent(revision)}`
+    : "";
+  return `/game/${path}${version}`;
 }
 
 function basename(path) {
@@ -54,10 +90,14 @@ function isTypingTarget(target) {
 export class EditorApp {
   constructor() {
     this.store = null;
+    this.contentStore = null;
+    this.contentWorkspace = null;
     this.inspector = null;
     this.mapScene = null;
     this.assetLibrary = null;
     this.backgroundPicker = null;
+    this.levelMusicPicker = null;
+    this.levelMusicPreviewAudio = null;
     this.game = null;
     this.project = null;
     this.catalogs = { actors: {}, items: {} };
@@ -70,16 +110,23 @@ export class EditorApp {
     this.activeMechanismKind = "switch";
     this.activeTerrainType = "ground";
     this.isSaving = false;
+    this.isSavingContent = false;
+    this.contentApiAvailable = false;
+    this.activeView = "map";
     this.loaded = false;
   }
 
   cacheElements() {
     const ids = [
       "save-state",
+      "module-map",
+      "editor-workspace",
       "level-select",
       "new-level",
       "open-level",
       "save-level",
+      "save-content",
+      "content-workspace",
       "open-help",
       "open-asset-library",
       "close-help",
@@ -135,6 +182,50 @@ export class EditorApp {
     this.backgroundPicker = new BackgroundPicker({
       onSelect: (asset) => this.importBackgroundAsset(asset)
     });
+    this.levelMusicPicker = new AssetPickerDialog({
+      dialog: document.getElementById("level-music-dialog"),
+      closeButton: document.getElementById(
+        "close-level-music"
+      ),
+      refreshButton: document.getElementById(
+        "refresh-level-music"
+      ),
+      status: document.getElementById("level-music-status"),
+      categories: [
+        {
+          id: "ambient",
+          label: "环境音",
+          actionLabel: "使用此音乐",
+          emptyDescription:
+            "请先在素材库的“音效 / 环境音”中上传音频。"
+        }
+      ],
+      browser: {
+        categoryList: document.getElementById(
+          "level-music-categories"
+        ),
+        breadcrumb: document.getElementById(
+          "level-music-breadcrumb"
+        ),
+        summary: document.getElementById(
+          "level-music-summary"
+        ),
+        grid: document.getElementById("level-music-grid"),
+        empty: document.getElementById("level-music-empty"),
+        emptyTitle: document.getElementById(
+          "level-music-empty-title"
+        ),
+        emptyDescription: document.getElementById(
+          "level-music-empty-description"
+        ),
+        renderPreview: (asset) =>
+          renderAudioAssetPreview(asset),
+        getAssetMeta: (asset) =>
+          `${asset.audioFormat || "音频"} · ${formatAssetSize(
+            asset.size
+          )}`
+      }
+    });
     this.bindStaticEvents();
 
     try {
@@ -154,8 +245,10 @@ export class EditorApp {
       const initialLevel = initialLevelId
         ? await this.loadProjectLevelDocument(initialLevelId)
         : createEmptyLevel();
+      const initialContent = await this.loadContentDocument();
 
       this.store = new EditorStore(initialLevel);
+      this.contentStore = new ContentStore(initialContent);
       this.currentLevelId = initialLevel.id;
       this.inspector = new Inspector(this.els.inspector);
       this.inspector.setContext({
@@ -165,8 +258,18 @@ export class EditorApp {
       this.store.subscribe((reason) =>
         this.handleStoreChange(reason)
       );
+      this.contentWorkspace = new ContentWorkspace(
+        this.contentStore,
+        {
+          onNotify: (message, isError) =>
+            this.showToast(message, isError),
+          onStateChange: (reason) =>
+            this.handleContentStoreChange(reason)
+        }
+      );
       this.createPhaser();
       this.renderAll();
+      this.renderContentHeader();
       this.els.canvas_empty.hidden = true;
       this.loaded = true;
       this.setStatus(
@@ -203,6 +306,38 @@ export class EditorApp {
       console.warn("项目 API 不可用，改用静态样例数据。", apiError);
       this.apiAvailable = false;
       return this.loadFallbackProject();
+    }
+  }
+
+  async loadContentDocument() {
+    try {
+      const response = await fetch("/api/content", {
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        throw new Error(`内容 API 返回 ${response.status}`);
+      }
+      const payload = await response.json();
+      this.contentApiAvailable = true;
+      return normalizeContentDocument(payload.content);
+    } catch (apiError) {
+      console.warn(
+        "内容 API 不可用，改用编辑器内静态内容文档。",
+        apiError
+      );
+      this.contentApiAvailable = false;
+      try {
+        const response = await fetch(
+          "../data/content/content.json",
+          { cache: "no-store" }
+        );
+        if (response.ok) {
+          return normalizeContentDocument(await response.json());
+        }
+      } catch (fallbackError) {
+        console.warn("无法读取静态内容文档。", fallbackError);
+      }
+      return createEmptyContentDocument();
     }
   }
 
@@ -317,6 +452,20 @@ export class EditorApp {
   }
 
   bindStaticEvents() {
+    this.els.module_map.addEventListener("click", () =>
+      this.switchView("map")
+    );
+    for (const button of document.querySelectorAll(
+      "[data-content-module]"
+    )) {
+      button.addEventListener("click", () =>
+        this.switchView(
+          "content",
+          button.dataset.contentModule
+        )
+      );
+    }
+
     this.els.tool_grid.addEventListener("click", (event) => {
       const button = event.target.closest("[data-tool]");
       if (button) {
@@ -363,6 +512,9 @@ export class EditorApp {
     });
 
     this.els.inspector.addEventListener("input", (event) => {
+      if (this.handleLevelMusicInput(event)) {
+        return;
+      }
       if (event.target.matches("[data-path]")) {
         this.handleInspectorEdit(event);
       }
@@ -374,6 +526,9 @@ export class EditorApp {
       }
     });
     this.els.inspector.addEventListener("change", (event) => {
+      if (this.handleLevelMusicChange(event)) {
+        return;
+      }
       const levelFilter = event.target.closest?.(
         "[data-target-level-filter]"
       );
@@ -408,6 +563,9 @@ export class EditorApp {
     );
     this.els.save_level.addEventListener("click", () =>
       this.saveToGame()
+    );
+    this.els.save_content.addEventListener("click", () =>
+      this.saveContent()
     );
     this.els.save_as.addEventListener("click", () =>
       this.exportJson()
@@ -471,7 +629,7 @@ export class EditorApp {
       this.handleKeyboard(event)
     );
     window.addEventListener("beforeunload", (event) => {
-      if (this.store?.dirty) {
+      if (this.store?.dirty || this.contentStore?.dirty) {
         event.preventDefault();
         event.returnValue = "";
       }
@@ -479,13 +637,65 @@ export class EditorApp {
   }
 
   handleStoreChange(reason) {
+    if (
+      reason === "document-replaced" ||
+      reason === "history-changed" ||
+      (reason === "selection-changed" &&
+        this.store.selection?.section !== "level")
+    ) {
+      this.stopBackgroundMusicPreview();
+    }
     this.renderAll();
+    this.updateBackgroundMusicPreviewButton();
     if (reason === "tool-changed") {
       this.mapScene?.handleToolChanged();
     }
     if (reason === "document-replaced") {
       requestAnimationFrame(() => this.mapScene?.fitView());
     }
+  }
+
+  handleContentStoreChange() {
+    this.renderContentHeader();
+  }
+
+  switchView(view, moduleKey = null) {
+    this.stopBackgroundMusicPreview();
+    const showContent = view === "content";
+    this.activeView = showContent ? "content" : "map";
+    if (showContent) {
+      this.game?.loop?.sleep();
+    }
+    this.els.editor_workspace.hidden = showContent;
+    this.els.content_workspace.hidden = !showContent;
+    this.els.save_level.hidden = showContent;
+    this.els.save_content.hidden = !showContent;
+    for (const element of document.querySelectorAll(".map-only")) {
+      element.hidden = showContent;
+    }
+    for (const button of document.querySelectorAll(".module-tab")) {
+      button.classList.remove("is-active");
+      button.removeAttribute("aria-current");
+    }
+    this.els.module_map.classList.toggle("is-active", !showContent);
+    if (!showContent) {
+      this.els.module_map.setAttribute("aria-current", "page");
+    }
+
+    if (showContent) {
+      const activeButton = document.querySelector(
+        `[data-content-module="${moduleKey}"]`
+      );
+      activeButton?.classList.add("is-active");
+      activeButton?.setAttribute("aria-current", "page");
+      this.contentWorkspace?.setModule(moduleKey);
+      this.renderContentHeader();
+      return;
+    }
+
+    this.renderHeader();
+    this.game?.loop?.wake();
+    requestAnimationFrame(() => this.mapScene?.fitView());
   }
 
   renderAll() {
@@ -501,6 +711,31 @@ export class EditorApp {
     this.inspector.render(this.store);
     this.renderValidation();
     this.renderLevelSelect();
+  }
+
+  renderContentHeader() {
+    if (
+      !this.contentStore ||
+      this.activeView !== "content"
+    ) {
+      return;
+    }
+    let badge = "内容已同步";
+    let className = "save-state";
+    if (this.isSavingContent) {
+      badge = "正在保存…";
+    } else if (this.contentStore.dirty) {
+      badge = "内容有未保存修改";
+      className += " is-dirty";
+    } else if (!this.contentApiAvailable) {
+      badge = "内容 API 未连接";
+      className += " is-error";
+    } else {
+      className += " is-saved";
+    }
+    this.els.save_state.textContent = badge;
+    this.els.save_state.className = className;
+    this.els.save_content.disabled = this.isSavingContent;
   }
 
   renderHeader() {
@@ -864,6 +1099,123 @@ export class EditorApp {
       .join("");
   }
 
+  handleLevelMusicInput(event) {
+    const input = event.target.closest?.(
+      "[data-level-music-volume]"
+    );
+    if (!input) {
+      return false;
+    }
+    const percent = Math.min(
+      100,
+      Math.max(0, Number(input.value) || 0)
+    );
+    const output = input
+      .closest(".level-music-volume")
+      ?.querySelector("[data-level-music-volume-output]");
+    if (output) {
+      output.textContent = `${Math.round(percent)}%`;
+    }
+    if (this.levelMusicPreviewAudio) {
+      this.levelMusicPreviewAudio.volume = percent / 100;
+    }
+    return true;
+  }
+
+  handleLevelMusicChange(event) {
+    const volume = event.target.closest?.(
+      "[data-level-music-volume]"
+    );
+    if (volume) {
+      const value =
+        Math.min(
+          100,
+          Math.max(0, Number(volume.value) || 0)
+        ) / 100;
+      this.store.update(
+        (draft) => {
+          if (draft.backgroundMusic) {
+            draft.backgroundMusic.volume = value;
+          }
+        },
+        { coalesceKey: "level-music-volume" }
+      );
+      if (this.levelMusicPreviewAudio) {
+        this.levelMusicPreviewAudio.volume = value;
+      }
+      this.inspector.render(this.store, { force: true });
+      this.updateBackgroundMusicPreviewButton();
+      return true;
+    }
+    const loop = event.target.closest?.("[data-level-music-loop]");
+    if (loop) {
+      this.store.update((draft) => {
+        if (draft.backgroundMusic) {
+          draft.backgroundMusic.loop = loop.checked;
+        }
+      });
+      if (this.levelMusicPreviewAudio) {
+        this.levelMusicPreviewAudio.loop = loop.checked;
+      }
+      this.inspector.render(this.store, { force: true });
+      this.updateBackgroundMusicPreviewButton();
+      return true;
+    }
+    return false;
+  }
+
+  toggleBackgroundMusicPreview() {
+    const music = this.store?.document?.backgroundMusic;
+    if (!music?.path) {
+      return;
+    }
+    if (this.levelMusicPreviewAudio) {
+      this.stopBackgroundMusicPreview();
+      return;
+    }
+    const audio = new Audio(
+      gameAssetUrl(music.path, music.revision)
+    );
+    audio.volume = Math.min(
+      1,
+      Math.max(0, Number(music.volume) || 0)
+    );
+    audio.loop = music.loop !== false;
+    audio.addEventListener("ended", () => {
+      if (this.levelMusicPreviewAudio === audio) {
+        this.levelMusicPreviewAudio = null;
+        this.updateBackgroundMusicPreviewButton();
+      }
+    });
+    this.levelMusicPreviewAudio = audio;
+    this.updateBackgroundMusicPreviewButton();
+    audio.play().catch((error) => {
+      console.warn("关卡音乐试听失败", error);
+      this.stopBackgroundMusicPreview();
+      this.showToast(`关卡音乐试听失败：${error.message}`, true);
+    });
+  }
+
+  stopBackgroundMusicPreview() {
+    if (this.levelMusicPreviewAudio) {
+      this.levelMusicPreviewAudio.pause();
+      this.levelMusicPreviewAudio.currentTime = 0;
+    }
+    this.levelMusicPreviewAudio = null;
+    this.updateBackgroundMusicPreviewButton();
+  }
+
+  updateBackgroundMusicPreviewButton() {
+    const button = this.els.inspector?.querySelector(
+      '[data-action="preview-background-music"]'
+    );
+    if (button) {
+      button.textContent = this.levelMusicPreviewAudio
+        ? "停止"
+        : "试听";
+    }
+  }
+
   handleInspectorEdit(event) {
     if (!this.store) {
       return;
@@ -955,6 +1307,29 @@ export class EditorApp {
       );
       return;
     }
+    if (action === "import-background-music") {
+      this.stopBackgroundMusicPreview();
+      this.levelMusicPicker.open({
+        currentAssetId:
+          this.store.document.backgroundMusic?.id ?? "",
+        onSelect: (asset) => this.importBackgroundMusic(asset)
+      });
+      return;
+    }
+    if (action === "preview-background-music") {
+      this.toggleBackgroundMusicPreview();
+      return;
+    }
+    if (action === "clear-background-music") {
+      this.stopBackgroundMusicPreview();
+      this.store.update((draft) => {
+        draft.backgroundMusic = null;
+      });
+      this.store.setSelection({ section: "level" });
+      this.inspector.render(this.store, { force: true });
+      this.setStatus("已移除关卡背景音乐");
+      return;
+    }
     if (action === "clear-background") {
       this.store.update((draft) => {
         delete draft.world.background;
@@ -1026,10 +1401,64 @@ export class EditorApp {
     return background;
   }
 
+  async importBackgroundMusic(asset) {
+    if (!this.apiAvailable) {
+      throw new Error("请通过 npm start 启动编辑器项目服务");
+    }
+    this.stopBackgroundMusicPreview();
+    const response = await fetch("/api/audio/import", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        assetId: asset.relativePath
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(
+        payload.error ?? `导入失败（${response.status}）`
+      );
+    }
+    if (!payload.music) {
+      throw new Error("导入接口未返回音乐信息");
+    }
+
+    const previous = this.store.document.backgroundMusic;
+    const music = {
+      ...payload.music,
+      displayName:
+        asset.displayName ?? payload.music.fileName,
+      folderId: asset.folderId ?? null,
+      folderPath: asset.folderPath ?? "",
+      volume:
+        Number.isFinite(previous?.volume) &&
+        previous.volume >= 0 &&
+        previous.volume <= 1
+          ? previous.volume
+          : 1,
+      loop:
+        typeof previous?.loop === "boolean"
+          ? previous.loop
+          : true
+    };
+    this.store.update((draft) => {
+      draft.backgroundMusic = music;
+    });
+    this.inspector.render(this.store, { force: true });
+    this.setStatus(
+      `已导入关卡背景音乐：${music.displayName}`
+    );
+    this.showToast(
+      `已导入关卡背景音乐 ${music.displayName}`
+    );
+    return music;
+  }
+
   handleKeyboard(event) {
     if (
       !this.store ||
-      isTypingTarget(event.target) ||
       document.querySelector("dialog[open]")
     ) {
       return;
@@ -1039,7 +1468,30 @@ export class EditorApp {
 
     if (modifier && key === "s") {
       event.preventDefault();
-      this.saveToGame();
+      if (this.activeView === "content") {
+        this.saveContent();
+      } else {
+        this.saveToGame();
+      }
+      return;
+    }
+    if (this.activeView === "content") {
+      if (modifier && key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) {
+          this.contentStore?.redo();
+        } else {
+          this.contentStore?.undo();
+        }
+      } else if (modifier && key === "y") {
+        event.preventDefault();
+        this.contentStore?.redo();
+      }
+      return;
+    }
+    if (
+      isTypingTarget(event.target)
+    ) {
       return;
     }
     if (modifier && key === "z") {
@@ -1252,6 +1704,71 @@ export class EditorApp {
       this.showToast(`无法打开文件：${error.message}`, true);
     } finally {
       this.els.file_input.value = "";
+    }
+  }
+
+  async saveContent() {
+    if (!this.contentStore || this.isSavingContent) {
+      return;
+    }
+    const content = normalizeContentDocument(
+      this.contentStore.document
+    );
+    const issues = validateContentDocument(content);
+    if (hasContentErrors(issues)) {
+      const firstError = issues.find(
+        (issue) => issue.severity === "error"
+      );
+      this.contentStore.setSelection(
+        firstError?.selection?.moduleKey
+          ? firstError.selection
+          : null
+      );
+      this.contentWorkspace?.setStatus(firstError.message);
+      this.showToast(
+        `内容存在错误，无法保存：${firstError.message}`,
+        true
+      );
+      return;
+    }
+
+    if (!this.contentApiAvailable) {
+      this.contentWorkspace?.exportJson();
+      this.showToast(
+        "内容 API 不可用，已改为下载 content.json。",
+        true
+      );
+      return;
+    }
+
+    this.isSavingContent = true;
+    this.renderContentHeader();
+    try {
+      const response = await fetch("/api/content", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(content)
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? `保存失败（${response.status}）`
+        );
+      }
+      this.contentStore.markSaved();
+      this.contentWorkspace?.setStatus(
+        `已写入 ${basename(payload.savedTo)}`
+      );
+      this.showToast("内容已保存到游戏项目。");
+    } catch (error) {
+      this.els.save_state.textContent = "内容保存失败";
+      this.els.save_state.className = "save-state is-error";
+      this.showToast(`内容保存失败：${error.message}`, true);
+    } finally {
+      this.isSavingContent = false;
+      this.renderContentHeader();
     }
   }
 

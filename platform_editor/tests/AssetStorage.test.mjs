@@ -126,6 +126,109 @@ function pngHeader(width, height) {
   return buffer;
 }
 
+test("both audio categories accept WAV, OGG and MP3", async (t) => {
+  const assetRoot = await mkdtemp(
+    join(tmpdir(), "platform-editor-audio-")
+  );
+  t.after(() => rm(assetRoot, { recursive: true, force: true }));
+
+  const formats = [
+    ["wav", "audio/wav"],
+    ["ogg", "audio/ogg"],
+    ["mp3", "audio/mpeg"]
+  ];
+  for (const categoryId of ["sfx", "ambient"]) {
+    for (const [extension, contentType] of formats) {
+      await saveAsset(assetRoot, {
+        categoryId,
+        fileName: `${categoryId}.${extension}`,
+        contentType,
+        content: Buffer.from(`${categoryId}-${extension}`)
+      });
+    }
+  }
+
+  for (const categoryId of ["sfx", "ambient"]) {
+    const assets = await listAssets(assetRoot, categoryId);
+    assert.deepEqual(
+      new Set(assets.map((asset) => asset.audioFormat)),
+      new Set(["WAV", "OGG", "MP3"])
+    );
+    assert.ok(
+      assets.every((asset) =>
+        asset.relativePath.startsWith(`audio/${categoryId}/`)
+      )
+    );
+  }
+});
+
+test("audio upload validation rejects non-audio extensions", async (t) => {
+  const assetRoot = await mkdtemp(
+    join(tmpdir(), "platform-editor-audio-validation-")
+  );
+  t.after(() => rm(assetRoot, { recursive: true, force: true }));
+
+  await assert.rejects(
+    () =>
+      saveAsset(assetRoot, {
+        categoryId: "sfx",
+        fileName: "voice.flac",
+        contentType: "audio/flac",
+        content: Buffer.from("audio")
+      }),
+    /仅支持图片或音频素材/
+  );
+  await assert.rejects(
+    () =>
+      saveAsset(assetRoot, {
+        categoryId: "sfx",
+        fileName: "cover.png",
+        contentType: "image/png",
+        content: Buffer.from("image")
+      }),
+    /短音效分类仅支持 WAV、OGG、MP3 音频文件/
+  );
+  await assert.rejects(
+    () =>
+      saveAsset(assetRoot, {
+        categoryId: "background",
+        fileName: "hit.wav",
+        contentType: "audio/wav",
+        content: Buffer.from("audio")
+      }),
+    /静态背景分类仅支持/
+  );
+});
+
+test("audio group exposes short sfx and ambient categories", () => {
+  const audioGroup = ASSET_CATEGORIES.find(
+    (group) => group.id === "audio"
+  );
+  assert.equal(audioGroup.label, "音效");
+  assert.deepEqual(
+    audioGroup.children.map((category) => ({
+      id: category.id,
+      label: category.label,
+      extensions: category.allowedExtensions,
+      storage: category.storageSegments
+    })),
+    [
+      {
+        id: "sfx",
+        label: "短音效",
+        extensions: [".wav", ".ogg", ".mp3"],
+        storage: ["audio", "sfx"]
+      },
+      {
+        id: "ambient",
+        label: "环境音",
+        extensions: [".wav", ".ogg", ".mp3"],
+        storage: ["audio", "ambient"]
+      }
+    ]
+  );
+});
+
 test("asset uploads use the workspace map categories", async (t) => {
   const assetRoot = await mkdtemp(
     join(tmpdir(), "platform-editor-assets-")

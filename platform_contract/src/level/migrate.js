@@ -23,6 +23,7 @@ export function createEmptyLevel(levelId = "level-003") {
       deadzoneWidth: 180,
       deadzoneHeight: 110
     },
+    backgroundMusic: null,
     spawnPoints: [
       {
         id: "spawn-start",
@@ -49,6 +50,36 @@ export function createEmptyLevel(levelId = "level-003") {
   };
 }
 
+function migrateVersion3ToVersion4(level) {
+  return {
+    ...level,
+    backgroundMusic: level.backgroundMusic ?? null
+  };
+}
+
+function normalizeBackgroundMusic(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return value ?? null;
+  }
+  const volume = Number(value.volume);
+  return {
+    ...value,
+    volume: Number.isFinite(volume)
+      ? Math.min(1, Math.max(0, volume))
+      : 1,
+    loop: typeof value.loop === "boolean" ? value.loop : true
+  };
+}
+
+function migrateVersion4ToVersion5(level) {
+  return {
+    ...level,
+    backgroundMusic: normalizeBackgroundMusic(
+      level.backgroundMusic
+    )
+  };
+}
+
 export function migrateLevelDocument(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("关卡文件必须是 JSON 对象");
@@ -64,10 +95,16 @@ export function migrateLevelDocument(input) {
       `不支持的关卡 schemaVersion：${sourceVersion}；当前版本为 ${CURRENT_LEVEL_SCHEMA_VERSION}`
     );
   }
-  const migrated = {
-    ...clone(input),
-    schemaVersion: CURRENT_LEVEL_SCHEMA_VERSION
-  };
+  let migrated = clone(input);
+  let version = migrated.schemaVersion ?? 1;
+  if (version <= 3) {
+    migrated = migrateVersion3ToVersion4(migrated);
+    version = 4;
+  }
+  if (version <= 4) {
+    migrated = migrateVersion4ToVersion5(migrated);
+  }
+  migrated.schemaVersion = CURRENT_LEVEL_SCHEMA_VERSION;
   return normalizeLevel(migrated);
 }
 
@@ -90,6 +127,11 @@ export function normalizeLevel(input) {
       ...(input.camera ?? {})
     }
   };
+  level.backgroundMusic =
+    input.backgroundMusic === undefined ||
+    input.backgroundMusic === null
+      ? null
+      : normalizeBackgroundMusic(clone(input.backgroundMusic));
   const legacyBackgroundAsset = level.world.backgroundAsset;
   const legacyBackgroundMap = level.world.backgroundMap;
   if (level.world.background?.type === "tiled") {
